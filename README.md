@@ -69,6 +69,11 @@ industry-case-study-repository/
 
 
 ---
+## Database Design
+
+![ER Diagram](docs/er-diagram.png)
+
+---
 
 ## How to Run
 
