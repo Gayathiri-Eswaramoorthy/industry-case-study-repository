@@ -2,18 +2,12 @@ import { useContext } from "react";
 import { Navigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 
-function ProtectedRoute({ children, allowedRoles }) {
-  const { token, role } = useContext(AuthContext);
+function ProtectedRoute({ children }) {
+  const { auth } = useContext(AuthContext);
+  const storedToken = localStorage.getItem("token");
 
-  // Not logged in
-  if (!token) {
+  if (!auth?.token || !storedToken) {
     return <Navigate to="/" replace />;
-  }
-
-  // If roles are specified and user role not allowed
-  if (allowedRoles && !allowedRoles.includes(role)) {
-    return <Navigate to="/dashboard" replace />;
-    // OR you can return <h2>Unauthorized</h2>;
   }
 
   return children;

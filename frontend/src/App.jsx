@@ -1,37 +1,83 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { useContext } from "react";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
 import Users from "./pages/Users";
+import CaseListPage from "./modules/caseStudy/pages/CaseListPage";
+import CaseDetailsPage from "./modules/caseStudy/pages/CaseDetailsPage";
+import CaseCreatePage from "./modules/caseStudy/pages/CaseCreatePage";
+import CaseEditPage from "./modules/caseStudy/pages/CaseEditPage";
+import SubmitSolutionPage from "./modules/submission/pages/SubmitSolutionPage";
+import DashboardPage from "./modules/analytics/pages/DashboardPage";
 import ProtectedRoute from "./components/ProtectedRoute";
+import Layout from "./components/layout/Layout";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import FacultyDashboard from "./pages/faculty/FacultyDashboard";
+import FacultyAnalytics from "./pages/faculty/FacultyAnalytics";
+import StudentDashboard from "./pages/student/StudentDashboard";
+import CaseSubmissions from "./pages/faculty/CaseSubmissions";
+import FacultySubmissions from "./pages/faculty/FacultySubmissions";
+import FacultySubmissionReview from "./pages/faculty/FacultySubmissionReview";
+import SubmitSolution from "./pages/student/SubmitSolution";
+import MySubmissions from "./pages/student/MySubmissions";
+import { AuthContext } from "./context/AuthContext";
+
+function RoleDashboardRedirect() {
+  const { role } = useContext(AuthContext);
+
+  if (role === "ADMIN") {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
+
+  if (role === "FACULTY") {
+    return <Navigate to="/faculty/dashboard" replace />;
+  }
+
+  return <Navigate to="/student/dashboard" replace />;
+}
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-
-        {/* Public */}
         <Route path="/" element={<Login />} />
 
-        {/* Any logged-in user */}
         <Route
-          path="/dashboard"
+          path="/"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <Layout />
             </ProtectedRoute>
           }
-        />
-
-        {/* ADMIN only */}
-        <Route
-          path="/users"
-          element={
-            <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <Users />
-            </ProtectedRoute>
-          }
-        />
-
+        >
+          <Route path="dashboard" element={<RoleDashboardRedirect />} />
+          <Route path="admin/dashboard" element={<AdminDashboard />} />
+          <Route path="faculty/dashboard" element={<FacultyDashboard />} />
+          <Route path="faculty/analytics" element={<FacultyAnalytics />} />
+          <Route path="faculty/submissions" element={<FacultySubmissions />} />
+          <Route
+            path="faculty/submissions/:id"
+            element={<FacultySubmissionReview />}
+          />
+          <Route
+            path="faculty/cases/:caseId/submissions"
+            element={<CaseSubmissions />}
+          />
+          <Route path="cases/:id/submissions" element={<CaseSubmissions />} />
+          <Route path="student/dashboard" element={<StudentDashboard />} />
+          <Route path="student/submissions" element={<MySubmissions />} />
+          <Route
+            path="student/cases/:caseId/submit"
+            element={<SubmitSolution />}
+          />
+          <Route path="cases" element={<CaseListPage courseId={1} />} />
+          <Route path="cases/:caseId" element={<CaseDetailsPage />} />
+          <Route path="cases/new" element={<CaseCreatePage />} />
+          <Route path="cases/:caseId/edit" element={<CaseEditPage />} />
+          <Route path="cases/:caseId/submit" element={<SubmitSolutionPage />} />
+          <Route path="analytics" element={<DashboardPage />} />
+          <Route path="admin/users" element={<Users />} />
+          <Route path="users" element={<Users />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   );
