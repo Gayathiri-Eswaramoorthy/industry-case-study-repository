@@ -1,102 +1,219 @@
-#  Industry Case Study Repository
+# Industry Case Study Repository
 
-A full-stack academic platform designed to manage, review, map, and analyze industry case studies with secure authentication and role-based access control.
+A full-stack academic platform designed to manage industry case studies where faculty create cases, students submit solutions, and administrators manage the platform.
+
+The system enables structured learning through real-world case studies with secure authentication, role-based access control, and evaluation workflows.
 
 ---
 
-## Tech Stack
+# Tech Stack
 
-### Backend
+## Backend
 - Spring Boot
 - Spring Security
 - JWT Authentication
 - JPA / Hibernate
 - MySQL
 
-### Frontend
+## Frontend
 - React
+- Tailwind CSS
 - Axios
+- React Query
 - Context API
-- Protected Routes
+- React Router
 
 ---
 
-## Security Features
+# System Roles
 
-- JWT-based Authentication
-- Role-Based Authorization (Admin, Faculty, Student)
-- BCrypt Password Encryption
-- Stateless Session Management
+### Admin
+- Manage users
+- Publish case studies
+- Monitor platform activity and analytics
+
+### Faculty
+- Create case studies
+- Review student submissions
+- Evaluate solutions with scores and feedback
+
+### Student
+- Browse available case studies
+- Submit solutions
+- Track submission status and evaluation feedback
 
 ---
 
-## Backend Architecture
+# Core Implemented Features
 
-- Controller Layer
-- Service Layer
-- Repository Layer
-- DTO Pattern
+- JWT Authentication and Role-Based Access Control
+- Case Study Creation and Management
+- Student Solution Submission System
+- Faculty Evaluation Workflow
+- Role-Based Dashboards (Admin / Faculty / Student)
+- Case Study Analytics Dashboard
+- Full-Stack CRUD Operations
+- Secure REST API Communication
+
+---
+
+# Backend Architecture
+
+The backend follows a layered architecture to ensure modularity and maintainability.
+
+### Controller Layer
+Handles HTTP requests and API endpoints.
+
+### Service Layer
+Contains business logic and workflow implementation.
+
+### Repository Layer
+Handles database interaction using Spring Data JPA.
+
+### Additional Components
+- DTO Pattern for secure data transfer
 - Global Exception Handling
-- API Response Wrapper
-- Pagination Support
-- Soft Delete Strategy
-- Audit Fields
+- JWT Security Filters
+- API Response Wrappers
+- Spring Cache for analytics optimization
 
 ---
 
-## Core Features
-
-- User Registration & Login
-- Role-Based Access Control
-- Case Study Management
-- Faculty Review Workflow
-- Course & Category Normalization
-- Outcome Mapping (CO & PO)
-- Discussion System
-- Rating & Feedback
-- Notification Module
-- Engagement Tracking (Views & Downloads)
+# Project Structure
+industry-case-study-repository  
+│  
+├── backend  
+│ ├── controller  
+│ ├── service  
+│ │ └── impl  
+│ ├── repository  
+│ ├── entity  
+│ ├── dto  
+│ ├── security  
+│ └── config  
+│  
+├── frontend  
+│ ├── components  
+│ ├── pages  
+│ ├── services  
+│ ├── context  
+│ └── utils  
+│  
+└── database  
+└── mysql-schema  
 
 ---
 
-## Project Structure
+# Database Design
 
-industry-case-study-repository/
-│
-├── backend/
-├── frontend/
-└── .gitignore
+The system uses a relational schema with the following entities:
 
+- Users
+- Roles
+- Case Studies
+- Case Submissions
+- Courses
+- Course Outcomes
+- Program Outcomes
+- Case CO Mapping
 
----
-## Database Design
+### Key Relationships
+
+- Roles → Users
+- Faculty → Case Studies
+- Students → Case Submissions
+- Case Studies → Case Submissions
+- Courses → Course Outcomes
+- Case Studies → CO & PO Mapping
+
+ER Diagram:
 
 ![ER Diagram](docs/er-diagram.png)
 
 ---
 
-## How to Run
+# API Architecture
+
+The platform exposes RESTful APIs for all core operations.
+
+### Authentication
+
+POST /auth/login
+
+### Case Studies
+
+GET /cases  
+POST /cases  
+PUT /cases/{id}  
+DELETE /cases/{id}  
+
+### Student Submissions
+
+GET /student/submissions  
+POST /student/submissions
+
+### Faculty Review
+
+GET /faculty/submissions  
+PUT /submissions/{id}/evaluate
+
+All protected APIs require a JWT token in the Authorization header.
+
+---
+
+# Security Implementation
+
+- JWT-based stateless authentication
+- Role-based authorization (Admin, Faculty, Student)
+- BCrypt password encryption
+- Spring Security filter chain
+- Protected REST endpoints
+- Token validation for every request
+
+Example Authorization Header:
+
+Authorization: Bearer <JWT_TOKEN>
+
+
+---
+
+# Frontend State Management
+
+The frontend manages application state using:
+
+- React Hooks (useState, useEffect, useContext)
+- React Query for API data fetching and caching
+- Axios for API communication
+- Context API for authentication and theme management
+
+Benefits:
+
+- Efficient server-state caching
+- Reduced API calls
+- Consistent UI data updates
+- Improved performance
+
+---
+
+# Error Handling
 
 ### Backend
-1. Navigate to backend folder
-2. Configure database in `application.properties`
-3. Run using: mvn spring-boot:run
-
+- Global Exception Handler
+- Structured HTTP error responses
+- Input validation for API requests
 
 ### Frontend
-1. Navigate to frontend folder
-2. Install dependencies: npm install 
-3. Start development server: npm run dev
-
-
----
-
-## Project Objective
-
-To create a secure, scalable academic platform that supports structured content management, faculty validation workflows, outcome-based mapping, and student engagement tracking.
+- Axios error handling
+- Loading and error states in UI
+- Toast notifications for feedback
 
 ---
 
-## Author
+# Future Enhancements
 
-Gayathiri Eswaramoorthy
+- Discussion system for case collaboration
+- Notification system for submission updates
+- Advanced analytics dashboards
+- AI-based case recommendation system
+
+---
