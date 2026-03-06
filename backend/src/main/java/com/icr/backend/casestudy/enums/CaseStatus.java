@@ -1,4 +1,10 @@
-package com.icr.backend.caseStudy.enums;
+package com.icr.backend.casestudy.enums;
 
 public enum CaseStatus {
+    DRAFT,
+    PUBLISHED,
+    SUBMISSION_OPEN,
+    UNDER_REVIEW,
+    EVALUATED,
+    ARCHIVED
 }

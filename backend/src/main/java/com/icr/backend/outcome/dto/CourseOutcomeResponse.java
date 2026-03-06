@@ -13,5 +13,4 @@ public class CourseOutcomeResponse {
     private String code;
     private String description;
     private Long courseId;
-    private String courseCode;
 }

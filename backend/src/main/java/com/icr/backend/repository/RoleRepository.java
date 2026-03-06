@@ -10,4 +10,20 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
 
     Optional<Role> findByName(RoleType name);
 
+    default Optional<Role> findByName(String name) {
+        if (name == null || name.isBlank()) {
+            return Optional.empty();
+        }
+
+        String normalized = name.trim().toUpperCase();
+        if (normalized.startsWith("ROLE_")) {
+            normalized = normalized.substring("ROLE_".length());
+        }
+
+        try {
+            return findByName(RoleType.valueOf(normalized));
+        } catch (IllegalArgumentException ex) {
+            return Optional.empty();
+        }
+    }
 }

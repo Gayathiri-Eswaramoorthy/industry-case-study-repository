@@ -1,4 +1,31 @@
 package com.icr.backend.casestudy.dto;
 
+import com.icr.backend.casestudy.enums.DifficultyLevel;
+import com.icr.backend.casestudy.enums.CaseCategory;
+import com.icr.backend.casestudy.enums.SubmissionType;
+import com.icr.backend.enums.CaseStatus;
+import lombok.*;
+
+import java.time.LocalDateTime;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class CaseStudyResponse {
+
+    private Long id;
+    private String title;
+    private String description;
+    private DifficultyLevel difficulty;
+    private CaseStatus status;
+    private Long courseId;
+    private Long createdBy;
+    private LocalDateTime dueDate;
+    private Integer maxMarks;
+    private CaseCategory category;
+    private SubmissionType submissionType;
+    private String caseMaterialPath;
+    private LocalDateTime createdAt;
 }
