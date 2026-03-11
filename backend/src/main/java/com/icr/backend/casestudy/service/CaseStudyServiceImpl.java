@@ -62,6 +62,13 @@ public class CaseStudyServiceImpl implements CaseStudyService {
                 .category(request.getCategory() != null ? request.getCategory() : CaseCategory.PRODUCT)
                 .submissionType(request.getSubmissionType() != null ? request.getSubmissionType() : SubmissionType.TEXT)
                 .caseMaterialPath(request.getCaseMaterialPath())
+                .problemStatement(request.getProblemStatement())
+                .keyQuestions(request.getKeyQuestions())
+                .evaluationRubric(request.getEvaluationRubric())
+                .constraints(request.getConstraints())
+                .expectedOutcome(request.getExpectedOutcome())
+                .referenceLinks(request.getReferenceLinks())
+                .estimatedHours(request.getEstimatedHours())
                 .build();
 
         CaseStudy saved = caseStudyRepository.save(caseStudy);
@@ -70,11 +77,42 @@ public class CaseStudyServiceImpl implements CaseStudyService {
     }
 
     @Override
-    public List<CaseStudyResponse> getCasesByCourse(Long courseId) {
-        return caseStudyRepository.findByCourseId(courseId)
-                .stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+    public List<CaseStudyResponse> getCasesByCourse(Long courseId, CaseStatus status) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        boolean isAdmin = auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        boolean isFaculty = auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_FACULTY"));
+        List<CaseStudy> allCases = caseStudyRepository.findByCourseId(courseId);
+
+        List<CaseStudy> visibleCases;
+        if (isAdmin) {
+            visibleCases = allCases;
+        } else if (isFaculty) {
+            String email = auth.getName();
+            User faculty = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            visibleCases = allCases.stream()
+                    .filter(c -> c.getStatus() == CaseStatus.PUBLISHED
+                            || (c.getCreatedBy() != null
+                            && c.getCreatedBy().getId().equals(faculty.getId())))
+                    .collect(Collectors.toList());
+        } else {
+            visibleCases = allCases.stream()
+                    .filter(c -> c.getStatus() == CaseStatus.PUBLISHED)
+                    .collect(Collectors.toList());
+            return visibleCases.stream().map(this::mapToResponse).collect(Collectors.toList());
+        }
+
+        if (status != null) {
+            visibleCases = visibleCases.stream()
+                    .filter(c -> c.getStatus() == status)
+                    .collect(Collectors.toList());
+        }
+
+        return visibleCases.stream().map(this::mapToResponse).collect(Collectors.toList());
     }
 
     @Override
@@ -99,13 +137,32 @@ public class CaseStudyServiceImpl implements CaseStudyService {
         CaseStudy caseStudy = caseStudyRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Case not found with id: " + id));
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        boolean isStudent = authentication != null && authentication.getAuthorities() != null
-                && authentication.getAuthorities().stream()
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        boolean isAdmin = auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        boolean isStudent = auth != null && auth.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_STUDENT".equals(a.getAuthority()));
+        boolean isFaculty = auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_FACULTY".equals(a.getAuthority()));
+
+        if (isAdmin) {
+            return mapToResponse(caseStudy);
+        }
 
         if (isStudent && caseStudy.getStatus() != CaseStatus.PUBLISHED) {
             throw new ResourceNotFoundException("Case not found with id: " + id);
+        }
+
+        if (isFaculty && caseStudy.getStatus() != CaseStatus.PUBLISHED) {
+            String email = auth.getName();
+            User faculty = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+            boolean isOwner = caseStudy.getCreatedBy() != null
+                    && caseStudy.getCreatedBy().getId().equals(faculty.getId());
+            if (!isOwner) {
+                throw new ResourceNotFoundException("Case not found with id: " + id);
+            }
         }
 
         return mapToResponse(caseStudy);
@@ -146,32 +203,38 @@ public class CaseStudyServiceImpl implements CaseStudyService {
 
             User user = userRepository.findByEmail(authentication.getName())
                     .orElseThrow(() -> new AccessDeniedException("User not found"));
-            if (caseStudy.getCreatedBy() == null
-                    || caseStudy.getCreatedBy().getId() == null
-                    || !caseStudy.getCreatedBy().getId().equals(user.getId())) {
+
+            boolean isAdmin = authentication.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+            boolean isOwner = caseStudy.getCreatedBy() != null
+                    && caseStudy.getCreatedBy().getId() != null
+                    && caseStudy.getCreatedBy().getId().equals(user.getId());
+
+            if (!isAdmin && !isOwner) {
                 throw new AccessDeniedException("You can only edit your own cases");
             }
 
             if (caseStudy.getStatus() == CaseStatus.DRAFT) {
-                if (request.getTitle() != null) {
-                    caseStudy.setTitle(request.getTitle());
+                if (request.getTitle() != null) caseStudy.setTitle(request.getTitle());
+                if (request.getDescription() != null) caseStudy.setDescription(request.getDescription());
+                if (request.getCategory() != null) caseStudy.setCategory(parseCategory(request.getCategory()));
+                if (request.getDifficulty() != null) caseStudy.setDifficulty(request.getDifficulty());
+                if (request.getDueDate() != null) caseStudy.setDueDate(request.getDueDate().atStartOfDay());
+                if (request.getMaxMarks() != null) caseStudy.setMaxMarks(request.getMaxMarks());
+                if (request.getSubmissionType() != null) {
+                    try {
+                        caseStudy.setSubmissionType(SubmissionType.valueOf(request.getSubmissionType().trim().toUpperCase()));
+                    } catch (Exception ignored) {}
                 }
-                if (request.getDescription() != null) {
-                    caseStudy.setDescription(request.getDescription());
-                }
-                if (request.getCategory() != null) {
-                    caseStudy.setCategory(parseCategory(request.getCategory()));
-                }
-                if (request.getDifficulty() != null) {
-                    caseStudy.setDifficulty(request.getDifficulty());
-                }
-                if (request.getDueDate() != null) {
-                    caseStudy.setDueDate(request.getDueDate().atStartOfDay());
+                if (request.getCourseId() != null) {
+                    Course course = courseRepository.findById(request.getCourseId())
+                            .orElseThrow(() -> new ResourceNotFoundException("Course not found"));
+                    caseStudy.setCourse(course);
                 }
             } else if (caseStudy.getStatus() == CaseStatus.PUBLISHED) {
-                if (request.getDueDate() != null) {
-                    caseStudy.setDueDate(request.getDueDate().atStartOfDay());
-                }
+                if (request.getDueDate() != null) caseStudy.setDueDate(request.getDueDate().atStartOfDay());
+                if (request.getMaxMarks() != null) caseStudy.setMaxMarks(request.getMaxMarks());
             }
 
             CaseStudy saved = caseStudyRepository.save(caseStudy);
@@ -212,6 +275,12 @@ public class CaseStudyServiceImpl implements CaseStudyService {
                 .category(caseStudy.getCategory())
                 .submissionType(caseStudy.getSubmissionType())
                 .caseMaterialPath(caseStudy.getCaseMaterialPath())
+                .problemStatement(caseStudy.getProblemStatement())
+                .keyQuestions(caseStudy.getKeyQuestions())
+                .evaluationRubric(caseStudy.getEvaluationRubric())
+                .constraints(caseStudy.getConstraints())
+                .referenceLinks(caseStudy.getReferenceLinks())
+                .estimatedHours(caseStudy.getEstimatedHours())
                 .createdAt(caseStudy.getCreatedAt())
                 .build();
     }

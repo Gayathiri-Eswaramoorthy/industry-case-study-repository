@@ -23,4 +23,11 @@ public class CaseStudyRequest {
     private CaseCategory category;
     private SubmissionType submissionType;
     private String caseMaterialPath;
+    private String problemStatement;
+    private String keyQuestions;
+    private String evaluationRubric;
+    private String constraints;
+    private String expectedOutcome;
+    private String referenceLinks;
+    private Integer estimatedHours;
 }

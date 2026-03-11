@@ -28,8 +28,37 @@ public class CaseSubmission {
     @Column(name = "student_id", nullable = false)
     private Long studentId;
 
-    @Column(columnDefinition = "TEXT", nullable = false)
+    @Column(columnDefinition = "TEXT")
     private String solutionText;
+
+    @Column(columnDefinition = "TEXT")
+    private String executiveSummary;
+
+    @Column(columnDefinition = "TEXT")
+    private String situationAnalysis;
+
+    @Column(columnDefinition = "TEXT")
+    private String rootCauseAnalysis;
+
+    @Column(columnDefinition = "TEXT")
+    private String proposedSolution;
+
+    @Column(columnDefinition = "TEXT")
+    private String implementationPlan;
+
+    @Column(columnDefinition = "TEXT")
+    private String risksAndConstraints;
+
+    @Column(columnDefinition = "TEXT")
+    private String conclusion;
+
+    private String githubLink;
+
+    private String pdfFileName;
+
+    private String pdfFilePath;
+
+    private Integer selfRating;
 
     private Integer marksAwarded;
 

@@ -11,7 +11,7 @@ public interface CaseStudyService {
 
     CaseStudyResponse createCase(CaseStudyRequest request);
 
-    List<CaseStudyResponse> getCasesByCourse(Long courseId);
+    List<CaseStudyResponse> getCasesByCourse(Long courseId, CaseStatus status);
 
     List<CaseStudyResponse> getCasesByCourseAndStatus(Long courseId, CaseStatus status);
 

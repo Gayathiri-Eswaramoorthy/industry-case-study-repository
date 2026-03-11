@@ -7,9 +7,11 @@ import com.icr.backend.casestudy.repository.CaseStudyRepository;
 import com.icr.backend.casestudy.repository.CaseSubmissionRepository;
 import com.icr.backend.dto.ActivityItemResponse;
 import com.icr.backend.entity.User;
+import com.icr.backend.enums.CaseStatus;
 import com.icr.backend.repository.UserRepository;
 import com.icr.backend.service.ActivityService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -17,10 +19,16 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class ActivityServiceImpl implements ActivityService {
 
@@ -40,8 +48,28 @@ public class ActivityServiceImpl implements ActivityService {
             return List.of();
         }
 
+        int safeLimit = sanitizeLimit(limit);
         List<ActivityItemResponse> items = new ArrayList<>();
         List<CaseSubmission> submissions = caseSubmissionRepository.findByStudentId(student.getId());
+        List<CaseStudy> recentCases = caseStudyRepository.findByStatusAndCreatedAtAfterOrderByCreatedAtDesc(
+                CaseStatus.PUBLISHED,
+                LocalDateTime.now().minusDays(30),
+                PageRequest.of(0, safeLimit)
+        );
+
+        for (CaseStudy caseStudy : recentCases) {
+            LocalDateTime timestamp = caseStudy != null ? caseStudy.getCreatedAt() : null;
+            if (timestamp == null) {
+                continue;
+            }
+
+            items.add(ActivityItemResponse.builder()
+                    .id("case-" + caseStudy.getId())
+                    .type("case")
+                    .message("New case available: " + caseStudy.getTitle())
+                    .timestamp(timestamp)
+                    .build());
+        }
 
         for (CaseSubmission submission : submissions) {
             if (submission == null) {
@@ -67,51 +95,96 @@ public class ActivityServiceImpl implements ActivityService {
             }
         }
 
-        return sortAndLimit(items, limit);
+        return sortAndLimit(items, safeLimit);
     }
 
     @Override
     public List<ActivityItemResponse> getFacultyActivity(int limit, Long courseId) {
         int safeLimit = sanitizeLimit(limit);
-        List<SubmissionStatus> pendingStatuses = List.of(
-                SubmissionStatus.SUBMITTED,
-                SubmissionStatus.UNDER_REVIEW
-        );
-
-        List<CaseSubmission> submissions;
-        if (courseId != null) {
-            List<Long> caseIds = caseStudyRepository.findByCourseId(courseId)
-                    .stream()
-                    .map(CaseStudy::getId)
-                    .toList();
-
-            if (caseIds.isEmpty()) {
-                return List.of();
-            }
-
-            submissions = caseSubmissionRepository.findByCaseIdInAndStatusInOrderBySubmittedAtDesc(
-                    caseIds,
-                    pendingStatuses,
-                    PageRequest.of(0, safeLimit)
-            );
-        } else {
-            submissions = caseSubmissionRepository.findByStatusInOrderBySubmittedAtDesc(
-                    pendingStatuses,
-                    PageRequest.of(0, safeLimit)
-            );
+        String email = getAuthenticatedEmail();
+        if (email == null) {
+            return List.of();
         }
 
+        User faculty = userRepository.findByEmail(email).orElse(null);
+        if (faculty == null || faculty.getId() == null) {
+            return List.of();
+        }
+
+        List<CaseStudy> facultyCases = caseStudyRepository.findByCreatedBy_Id(faculty.getId());
+        if (facultyCases.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, CaseStudy> caseById = facultyCases.stream()
+                .filter(caseStudy -> caseStudy != null && caseStudy.getId() != null)
+                .collect(HashMap::new, (map, caseStudy) -> map.put(caseStudy.getId(), caseStudy), HashMap::putAll);
+
+        List<Long> caseIds = new ArrayList<>(caseById.keySet());
+        if (courseId != null) {
+            caseIds = facultyCases.stream()
+                    .filter(caseStudy -> caseStudy != null
+                            && caseStudy.getId() != null
+                            && caseStudy.getCourse() != null
+                            && courseId.equals(caseStudy.getCourse().getId()))
+                    .map(CaseStudy::getId)
+                    .toList();
+        }
+
+        if (caseIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<CaseSubmission> submissions = caseSubmissionRepository.findByCaseIdInOrderBySubmittedAtDesc(caseIds);
         List<ActivityItemResponse> items = new ArrayList<>();
+        Set<Long> studentIds = submissions.stream()
+                .filter(submission -> submission != null && submission.getStudentId() != null)
+                .map(CaseSubmission::getStudentId)
+                .collect(HashSet::new, HashSet::add, HashSet::addAll);
+        Map<Long, String> studentEmailById = new HashMap<>();
+        if (!studentIds.isEmpty()) {
+            userRepository.findAllById(studentIds).forEach(student -> studentEmailById.put(student.getId(), student.getEmail()));
+        }
+
         for (CaseSubmission submission : submissions) {
             if (submission == null || submission.getSubmittedAt() == null) {
                 continue;
             }
 
+            CaseStudy caseStudy = caseById.get(submission.getCaseId());
+            if (caseStudy == null) {
+                continue;
+            }
+
+            String studentEmail = studentEmailById.getOrDefault(submission.getStudentId(), "A student");
             items.add(ActivityItemResponse.builder()
-                    .id("review-" + submission.getId())
-                    .type("review")
-                    .message("Submission #" + submission.getId() + " is pending evaluation")
+                    .id("submission-" + submission.getId())
+                    .type("submission")
+                    .message(studentEmail + " submitted: " + caseStudy.getTitle())
                     .timestamp(submission.getSubmittedAt())
+                    .build());
+        }
+
+        List<CaseStudy> publishedCases = caseStudyRepository.findByCreatedBy_IdAndStatusOrderByUpdatedAtDesc(
+                faculty.getId(),
+                CaseStatus.PUBLISHED,
+                PageRequest.of(0, safeLimit)
+        );
+        for (CaseStudy caseStudy : publishedCases) {
+            LocalDateTime timestamp = caseStudy != null ? caseStudy.getUpdatedAt() : null;
+            if (timestamp == null) {
+                continue;
+            }
+
+            if (courseId != null && (caseStudy.getCourse() == null || !courseId.equals(caseStudy.getCourse().getId()))) {
+                continue;
+            }
+
+            items.add(ActivityItemResponse.builder()
+                    .id("publish-" + caseStudy.getId())
+                    .type("publish")
+                    .message("Your case '" + caseStudy.getTitle() + "' was published")
+                    .timestamp(timestamp)
                     .build());
         }
 
@@ -120,54 +193,77 @@ public class ActivityServiceImpl implements ActivityService {
 
     @Override
     public List<ActivityItemResponse> getAdminActivity(int limit) {
-        int safeLimit = sanitizeLimit(limit);
-        List<ActivityItemResponse> items = new ArrayList<>();
+        try {
+            int safeLimit = sanitizeLimit(limit);
+            List<ActivityItemResponse> items = new ArrayList<>();
 
-        List<User> users = userRepository.findAllByDeletedFalseOrderByCreatedAtDesc(PageRequest.of(0, safeLimit));
-        for (User user : users) {
-            LocalDateTime timestamp = user != null ? user.getCreatedAt() : null;
-            if (timestamp == null) {
-                continue;
+            List<User> users = userRepository.findAllByDeletedFalseOrderByCreatedAtDesc(PageRequest.of(0, safeLimit));
+            for (User user : users) {
+                LocalDateTime timestamp = user != null ? user.getCreatedAt() : null;
+                if (timestamp == null) {
+                    continue;
+                }
+
+                items.add(ActivityItemResponse.builder()
+                        .id("user-" + user.getId())
+                        .type("user")
+                        .message("New user registered: " + user.getEmail())
+                        .timestamp(timestamp)
+                        .build());
             }
 
-            items.add(ActivityItemResponse.builder()
-                    .id("user-" + user.getId())
-                    .type("user")
-                    .message("New user registered: " + user.getEmail())
-                    .timestamp(timestamp)
-                    .build());
-        }
+            List<CaseStudy> cases = caseStudyRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, safeLimit));
+            for (CaseStudy caseStudy : cases) {
+                LocalDateTime timestamp = caseStudy != null ? caseStudy.getCreatedAt() : null;
+                if (timestamp == null) {
+                    continue;
+                }
 
-        List<CaseStudy> cases = caseStudyRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, safeLimit));
-        for (CaseStudy caseStudy : cases) {
-            LocalDateTime timestamp = caseStudy != null ? caseStudy.getCreatedAt() : null;
-            if (timestamp == null) {
-                continue;
+                items.add(ActivityItemResponse.builder()
+                        .id("case-" + caseStudy.getId())
+                        .type("case")
+                        .message("Case created: " + caseStudy.getTitle())
+                        .timestamp(timestamp)
+                        .build());
             }
 
-            items.add(ActivityItemResponse.builder()
-                    .id("case-" + caseStudy.getId())
-                    .type("case")
-                    .message("Case created: " + caseStudy.getTitle())
-                    .timestamp(timestamp)
-                    .build());
-        }
+            List<CaseStudy> publishedCases = caseStudyRepository.findByStatusOrderByUpdatedAtDesc(
+                    CaseStatus.PUBLISHED,
+                    PageRequest.of(0, safeLimit)
+            );
+            for (CaseStudy caseStudy : publishedCases) {
+                LocalDateTime timestamp = caseStudy != null ? caseStudy.getUpdatedAt() : null;
+                if (timestamp == null) {
+                    continue;
+                }
 
-        List<CaseSubmission> submissions = caseSubmissionRepository.findAllByOrderBySubmittedAtDesc(PageRequest.of(0, safeLimit));
-        for (CaseSubmission submission : submissions) {
-            if (submission == null || submission.getSubmittedAt() == null) {
-                continue;
+                items.add(ActivityItemResponse.builder()
+                        .id("publish-" + caseStudy.getId())
+                        .type("publish")
+                        .message("Case published: " + caseStudy.getTitle())
+                        .timestamp(timestamp)
+                        .build());
             }
 
-            items.add(ActivityItemResponse.builder()
-                    .id("submission-" + submission.getId())
-                    .type("submission")
-                    .message("New submission received for Case #" + submission.getCaseId())
-                    .timestamp(submission.getSubmittedAt())
-                    .build());
-        }
+            List<CaseSubmission> submissions = caseSubmissionRepository.findAllByOrderBySubmittedAtDesc(PageRequest.of(0, safeLimit));
+            for (CaseSubmission submission : submissions) {
+                if (submission == null || submission.getSubmittedAt() == null) {
+                    continue;
+                }
 
-        return sortAndLimit(items, safeLimit);
+                items.add(ActivityItemResponse.builder()
+                        .id("submission-" + submission.getId())
+                        .type("submission")
+                        .message("New submission received for Case #" + submission.getCaseId())
+                        .timestamp(submission.getSubmittedAt())
+                        .build());
+            }
+
+            return sortAndLimit(items, safeLimit);
+        } catch (Exception ex) {
+            log.error("Failed to load admin activity", ex);
+            return List.of();
+        }
     }
 
     private String getAuthenticatedEmail() {
@@ -186,6 +282,10 @@ public class ActivityServiceImpl implements ActivityService {
     }
 
     private List<ActivityItemResponse> sortAndLimit(List<ActivityItemResponse> items, int limit) {
+        if (items == null || items.isEmpty()) {
+            return Collections.emptyList();
+        }
+
         return items.stream()
                 .filter(item -> item.getTimestamp() != null)
                 .sorted(Comparator.comparing(ActivityItemResponse::getTimestamp).reversed())
@@ -194,9 +294,9 @@ public class ActivityServiceImpl implements ActivityService {
     }
 
     private int sanitizeLimit(int limit) {
-        if (limit <= 0) {
+        if (limit <= 0 || limit > 100) {
             return 8;
         }
-        return Math.min(limit, 50);
+        return limit;
     }
 }

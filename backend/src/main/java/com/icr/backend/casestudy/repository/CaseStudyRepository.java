@@ -35,4 +35,24 @@ public interface CaseStudyRepository extends JpaRepository<CaseStudy, Long> {
     List<CaseStudy> findByCreatedBy_Id(Long createdById);
 
     List<CaseStudy> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
+    List<CaseStudy> findByStatusOrderByUpdatedAtDesc(CaseStatus status, Pageable pageable);
+
+    List<CaseStudy> findByStatusAndUpdatedAtAfterOrderByUpdatedAtDesc(
+            CaseStatus status,
+            LocalDateTime updatedAt,
+            Pageable pageable
+    );
+
+    List<CaseStudy> findByStatusAndCreatedAtAfterOrderByCreatedAtDesc(
+            CaseStatus status,
+            LocalDateTime createdAt,
+            Pageable pageable
+    );
+
+    List<CaseStudy> findByCreatedBy_IdAndStatusOrderByUpdatedAtDesc(
+            Long createdById,
+            CaseStatus status,
+            Pageable pageable
+    );
 }

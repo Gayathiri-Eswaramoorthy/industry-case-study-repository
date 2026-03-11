@@ -2,7 +2,6 @@ package com.icr.backend.casestudy.controller;
 
 import com.icr.backend.casestudy.dto.CaseStudyRequest;
 import com.icr.backend.casestudy.dto.CaseStudyResponse;
-import com.icr.backend.casestudy.dto.UpdateCaseStudyRequest;
 import com.icr.backend.casestudy.service.CaseStudyService;
 import com.icr.backend.dto.response.ApiResponse;
 import com.icr.backend.enums.CaseStatus;
@@ -70,19 +69,7 @@ public class CaseStudyController {
             Authentication authentication,
             @RequestParam(required = false) CaseStatus status
     ) {
-        boolean isStudent = authentication != null
-                && authentication.getAuthorities() != null
-                && authentication.getAuthorities().stream()
-                .anyMatch(a -> "ROLE_STUDENT".equals(a.getAuthority()));
-
-        List<CaseStudyResponse> cases;
-        if (isStudent) {
-            cases = caseStudyService.getPublishedCasesByCourse(courseId);
-        } else if (status != null) {
-            cases = caseStudyService.getCasesByCourseAndStatus(courseId, status);
-        } else {
-            cases = caseStudyService.getCasesByCourse(courseId);
-        }
+        List<CaseStudyResponse> cases = caseStudyService.getCasesByCourse(courseId, status);
 
         return ApiResponse.<List<CaseStudyResponse>>builder()
                 .success(true)
@@ -120,16 +107,6 @@ public class CaseStudyController {
                 .data(response)
                 .timestamp(LocalDateTime.now())
                 .build();
-    }
-
-    @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','FACULTY')")
-    @Operation(summary = "Update case study")
-    public CaseStudyResponse updateCase(
-            @PathVariable Long id,
-            @RequestBody UpdateCaseStudyRequest request) {
-
-        return caseStudyService.updateCase(id, request);
     }
 
     private String storeCaseMaterial(MultipartFile caseMaterial) {

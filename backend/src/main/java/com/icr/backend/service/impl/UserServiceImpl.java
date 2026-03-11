@@ -1,6 +1,7 @@
 package com.icr.backend.service.impl;
 
 import com.icr.backend.dto.request.CreateUserRequest;
+import com.icr.backend.dto.request.ResetPasswordRequest;
 import com.icr.backend.dto.response.PageResponse;
 import com.icr.backend.dto.response.UserResponse;
 import com.icr.backend.entity.Role;
@@ -16,6 +17,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import com.icr.backend.dto.response.DashboardStatsResponse;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.util.StringUtils;
 
 
 import java.util.List;
@@ -164,6 +166,21 @@ public class UserServiceImpl implements UserService {
             log.error("Failed to create user. email={}, role={}", email, role, ex);
             throw ex;
         }
+    }
+
+    @Override
+    public void resetPassword(Long userId, ResetPasswordRequest request) {
+        if (request == null || !StringUtils.hasText(request.getNewPassword())) {
+            throw new IllegalArgumentException("New password is required");
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        log.info("Admin reset password for user id {}", userId);
     }
 
 }

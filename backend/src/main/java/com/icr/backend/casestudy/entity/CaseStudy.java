@@ -58,6 +58,25 @@ public class CaseStudy {
     @Column(name = "case_material_path")
     private String caseMaterialPath;
 
+    @Column(columnDefinition = "TEXT")
+    private String problemStatement;
+
+    @Column(columnDefinition = "TEXT")
+    private String keyQuestions;
+
+    @Column(columnDefinition = "TEXT")
+    private String evaluationRubric;
+
+    @Column(columnDefinition = "TEXT")
+    private String constraints;
+
+    @Column(columnDefinition = "TEXT")
+    private String expectedOutcome;
+
+    private String referenceLinks;
+
+    private Integer estimatedHours;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "course_id", nullable = false)
     private Course course;

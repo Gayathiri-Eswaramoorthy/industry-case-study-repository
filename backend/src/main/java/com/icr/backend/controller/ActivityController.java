@@ -25,7 +25,7 @@ public class ActivityController {
     @PreAuthorize("hasRole('STUDENT')")
     @Operation(summary = "Get student activity")
     public List<ActivityItemResponse> getStudentActivity(
-            @RequestParam(defaultValue = "8") int limit) {
+            @RequestParam(name = "limit", defaultValue = "8") int limit) {
 
         return activityService.getStudentActivity(limit);
     }
@@ -34,8 +34,8 @@ public class ActivityController {
     @PreAuthorize("hasRole('FACULTY')")
     @Operation(summary = "Get faculty activity")
     public List<ActivityItemResponse> getFacultyActivity(
-            @RequestParam(defaultValue = "8") int limit,
-            @RequestParam(required = false) Long courseId) {
+            @RequestParam(name = "limit", defaultValue = "8") int limit,
+            @RequestParam(name = "courseId", required = false) Long courseId) {
 
         return activityService.getFacultyActivity(limit, courseId);
     }
@@ -44,7 +44,7 @@ public class ActivityController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Get admin activity")
     public List<ActivityItemResponse> getAdminActivity(
-            @RequestParam(defaultValue = "8") int limit) {
+            @RequestParam(name = "limit", defaultValue = "8") int limit) {
 
         return activityService.getAdminActivity(limit);
     }

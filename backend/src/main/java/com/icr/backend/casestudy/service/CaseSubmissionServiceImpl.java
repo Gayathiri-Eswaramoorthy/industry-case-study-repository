@@ -3,12 +3,16 @@ package com.icr.backend.casestudy.service;
 import com.icr.backend.casestudy.dto.CaseSubmissionResponse;
 import com.icr.backend.casestudy.dto.FacultyCaseSubmissionDTO;
 import com.icr.backend.casestudy.dto.FacultySubmissionDTO;
+import com.icr.backend.casestudy.dto.SubmissionEvaluationRequest;
 import com.icr.backend.casestudy.dto.SubmissionRequest;
 import com.icr.backend.casestudy.entity.CaseStudy;
 import com.icr.backend.casestudy.entity.CaseSubmission;
+import com.icr.backend.casestudy.entity.SubmissionCoScore;
 import com.icr.backend.casestudy.enums.SubmissionStatus;
+import com.icr.backend.casestudy.enums.SubmissionType;
 import com.icr.backend.casestudy.repository.CaseStudyRepository;
 import com.icr.backend.casestudy.repository.CaseSubmissionRepository;
+import com.icr.backend.casestudy.repository.SubmissionCoScoreRepository;
 import com.icr.backend.entity.User;
 import com.icr.backend.enums.CaseStatus;
 import com.icr.backend.exception.DuplicateSubmissionException;
@@ -18,11 +22,19 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,10 +43,11 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
 
     private final CaseSubmissionRepository caseSubmissionRepository;
     private final CaseStudyRepository caseStudyRepository;
+    private final SubmissionCoScoreRepository submissionCoScoreRepository;
     private final UserRepository userRepository;
 
     @Override
-    public CaseSubmissionResponse submitSolution(SubmissionRequest request) {
+    public CaseSubmissionResponse submitSolution(SubmissionRequest request, MultipartFile pdfFile) {
 
         var auth = SecurityContextHolder.getContext().getAuthentication();
 
@@ -60,10 +73,23 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
             throw new DuplicateSubmissionException("You have already submitted this case");
         }
 
+        SubmissionPayload payload = buildSubmissionPayload(caseStudy.getSubmissionType(), request, pdfFile);
+
         CaseSubmission submission = CaseSubmission.builder()
                 .caseId(caseStudy.getId())
                 .studentId(student.getId())
-                .solutionText(request.getSolutionText())
+                .solutionText(payload.solutionText())
+                .executiveSummary(request.getExecutiveSummary())
+                .situationAnalysis(request.getSituationAnalysis())
+                .rootCauseAnalysis(request.getRootCauseAnalysis())
+                .proposedSolution(request.getProposedSolution())
+                .implementationPlan(request.getImplementationPlan())
+                .risksAndConstraints(request.getRisksAndConstraints())
+                .conclusion(request.getConclusion())
+                .githubLink(payload.githubLink())
+                .pdfFileName(payload.pdfFileName())
+                .pdfFilePath(payload.pdfFilePath())
+                .selfRating(request.getSelfRating())
                 .status(SubmissionStatus.SUBMITTED)
                 .submittedAt(LocalDateTime.now())
                 .build();
@@ -75,8 +101,8 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
 
     @Override
     public CaseSubmissionResponse evaluateSubmission(Long submissionId,
-                                                     Integer marksAwarded,
-                                                     String facultyFeedback) {
+                                                     SubmissionEvaluationRequest request) {
+        Integer marksAwarded = request != null ? request.getScore() : null;
         if (marksAwarded == null) {
             throw new IllegalArgumentException("Score is required");
         }
@@ -94,11 +120,26 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Submission not found"));
 
         submission.setMarksAwarded(marksAwarded);
-        submission.setFacultyFeedback(facultyFeedback);
+        submission.setFacultyFeedback(request != null ? request.getFeedback() : null);
         submission.setStatus(SubmissionStatus.EVALUATED);
         submission.setEvaluatedAt(LocalDateTime.now());
 
-        return mapToResponse(caseSubmissionRepository.save(submission));
+        CaseSubmission savedSubmission = caseSubmissionRepository.save(submission);
+
+        if (request != null && request.getCoScores() != null && !request.getCoScores().isEmpty()) {
+            submissionCoScoreRepository.deleteBySubmissionId(savedSubmission.getId());
+            List<SubmissionCoScore> coScores = request.getCoScores().stream()
+                    .map(coScore -> SubmissionCoScore.builder()
+                            .submissionId(savedSubmission.getId())
+                            .coId(coScore.getCoId())
+                            .score(coScore.getScore())
+                            .maxScore(coScore.getMaxScore())
+                            .build())
+                    .toList();
+            submissionCoScoreRepository.saveAll(coScores);
+        }
+
+        return mapToResponse(savedSubmission);
     }
 
     @Override
@@ -171,13 +212,105 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
                 .map(User::getFullName)
                 .orElse("Unknown Student");
 
+        CaseStudy caseStudy = facultyCases.stream()
+                .filter(item -> item.getId().equals(submission.getCaseId()))
+                .findFirst()
+                .orElse(null);
+
         return new FacultySubmissionDTO(
                 submission.getId(),
+                submission.getCaseId(),
+                caseStudy != null && caseStudy.getCourse() != null ? caseStudy.getCourse().getId() : null,
                 studentName,
                 caseTitles.getOrDefault(submission.getCaseId(), "Unknown Case"),
+                submission.getSolutionText(),
+                submission.getExecutiveSummary(),
+                submission.getSituationAnalysis(),
+                submission.getRootCauseAnalysis(),
+                submission.getProposedSolution(),
+                submission.getImplementationPlan(),
+                submission.getRisksAndConstraints(),
+                submission.getConclusion(),
+                submission.getGithubLink(),
+                submission.getPdfFileName(),
+                submission.getPdfFilePath(),
+                submission.getSelfRating(),
+                submission.getMarksAwarded(),
+                submission.getFacultyFeedback(),
                 submission.getSubmittedAt(),
                 submission.getStatus()
         );
+    }
+
+    @Override
+    public List<SubmissionCoScore> getCoScores(Long submissionId) {
+        return submissionCoScoreRepository.findBySubmissionId(submissionId);
+    }
+
+    private SubmissionPayload buildSubmissionPayload(
+            SubmissionType submissionType,
+            SubmissionRequest request,
+            MultipartFile pdfFile
+    ) {
+        if (submissionType == SubmissionType.GITHUB_LINK) {
+            if (!StringUtils.hasText(request.getGithubLink())) {
+                throw new IllegalArgumentException("GitHub link is required for this case");
+            }
+
+            return new SubmissionPayload(
+                    null,
+                    request.getGithubLink().trim(),
+                    null,
+                    null
+            );
+        }
+
+        if (submissionType == SubmissionType.PDF) {
+            if (pdfFile == null || pdfFile.isEmpty()) {
+                throw new IllegalArgumentException("PDF file is required for this case");
+            }
+
+            return storePdfSubmission(pdfFile);
+        }
+
+        if (!StringUtils.hasText(request.getSolutionText())) {
+            throw new IllegalArgumentException("Solution text is required for this case");
+        }
+
+        return new SubmissionPayload(
+                request.getSolutionText().trim(),
+                null,
+                null,
+                null
+        );
+    }
+
+    private SubmissionPayload storePdfSubmission(MultipartFile pdfFile) {
+        String originalFileName = StringUtils.cleanPath(
+                Objects.requireNonNullElse(pdfFile.getOriginalFilename(), "submission.pdf")
+        );
+
+        if (!originalFileName.toLowerCase().endsWith(".pdf")) {
+            throw new IllegalArgumentException("Only PDF files are allowed");
+        }
+
+        try {
+            Path uploadDirectory = Paths.get("uploads", "submissions");
+            Files.createDirectories(uploadDirectory);
+
+            String storedFileName = UUID.randomUUID() + "-" + originalFileName;
+            Path destination = uploadDirectory.resolve(storedFileName);
+            Files.copy(pdfFile.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
+
+            return new SubmissionPayload(
+                    null,
+                    null,
+                    originalFileName,
+                    destination.toString()
+            );
+        } catch (IOException ex) {
+            throw new RuntimeException("Failed to store PDF submission", ex);
+        }
     }
 
     private CaseSubmissionResponse mapToResponse(CaseSubmission submission) {
@@ -187,6 +320,17 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
                 .caseId(submission.getCaseId())
                 .studentId(submission.getStudentId())
                 .solutionText(submission.getSolutionText())
+                .executiveSummary(submission.getExecutiveSummary())
+                .situationAnalysis(submission.getSituationAnalysis())
+                .rootCauseAnalysis(submission.getRootCauseAnalysis())
+                .proposedSolution(submission.getProposedSolution())
+                .implementationPlan(submission.getImplementationPlan())
+                .risksAndConstraints(submission.getRisksAndConstraints())
+                .conclusion(submission.getConclusion())
+                .githubLink(submission.getGithubLink())
+                .pdfFileName(submission.getPdfFileName())
+                .pdfFilePath(submission.getPdfFilePath())
+                .selfRating(submission.getSelfRating())
                 .marksAwarded(submission.getMarksAwarded())
                 .facultyFeedback(submission.getFacultyFeedback())
                 .status(submission.getStatus())
@@ -208,5 +352,13 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
 
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
+    private record SubmissionPayload(
+            String solutionText,
+            String githubLink,
+            String pdfFileName,
+            String pdfFilePath
+    ) {
     }
 }

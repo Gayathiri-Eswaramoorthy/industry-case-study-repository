@@ -27,5 +27,12 @@ public class CaseStudyResponse {
     private CaseCategory category;
     private SubmissionType submissionType;
     private String caseMaterialPath;
+    private String problemStatement;
+    private String keyQuestions;
+    private String evaluationRubric;
+    private String constraints;
+    // expectedOutcome is intentionally excluded so it is never exposed in student-facing responses.
+    private String referenceLinks;
+    private Integer estimatedHours;
     private LocalDateTime createdAt;
 }

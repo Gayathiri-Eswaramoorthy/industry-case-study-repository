@@ -26,7 +26,7 @@ public class FacultyCaseController {
     private final CaseSubmissionService caseSubmissionService;
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('FACULTY')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN')")
     public ResponseEntity<CaseStudyResponse> updateCase(
             @PathVariable Long id,
             @RequestBody UpdateCaseStudyRequest request) {
