@@ -9,12 +9,12 @@ A full-stack web application for managing industry case studies across academic 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                        Frontend                         │
-│              React + Vite (localhost:5173)               │
+│              React + Vite (localhost:5173)              │
 │                                                         │
-│  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐  │
-│  │   Student   │  │   Faculty    │  │     Admin     │  │
-│  │  Dashboard  │  │  Dashboard   │  │   Dashboard   │  │
-│  └─────────────┘  └──────────────┘  └───────────────┘  │
+│  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐   │
+│  │   Student   │  │   Faculty    │  │     Admin     │   │
+│  │  Dashboard  │  │  Dashboard   │  │   Dashboard   │   │
+│  └─────────────┘  └──────────────┘  └───────────────┘   │
 └────────────────────────┬────────────────────────────────┘
                          │ REST API (HTTP/JSON)
                          │ JWT Auth Headers
