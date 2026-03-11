@@ -13,3 +13,10 @@ export const createUser = async (userData) => {
   const response = await axiosInstance.post("/admin/users", userData);
   return response.data;
 };
+
+export const resetUserPassword = async ({ userId, newPassword }) => {
+  const response = await axiosInstance.put(`/admin/users/${userId}/reset-password`, {
+    newPassword,
+  });
+  return response.data;
+};

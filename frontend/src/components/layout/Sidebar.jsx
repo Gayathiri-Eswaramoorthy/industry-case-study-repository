@@ -1,9 +1,18 @@
 import { useContext, useMemo } from "react";
 import { NavLink } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { AuthContext } from "../../context/AuthContext";
+import { getFacultyDashboard } from "../../services/facultyDashboardService";
 
 function Sidebar() {
   const { role } = useContext(AuthContext);
+  const { data: facultyDashboard } = useQuery({
+    queryKey: ["faculty-dashboard"],
+    queryFn: getFacultyDashboard,
+    enabled: false,
+  });
+
+  const pendingReviews = facultyDashboard?.pendingReviews ?? 0;
 
   const dashboardPath =
     role === "ADMIN"
@@ -27,7 +36,11 @@ function Sidebar() {
     }
 
     if (role === "FACULTY") {
-      items.push({ to: "/faculty/submissions", label: "Review Queue" });
+      items.push({
+        to: "/faculty/submissions",
+        label: "Review Queue",
+        badge: pendingReviews,
+      });
     }
 
     if (role === "FACULTY" || role === "ADMIN") {
@@ -39,7 +52,7 @@ function Sidebar() {
     }
 
     return items;
-  }, [dashboardPath, role]);
+  }, [dashboardPath, pendingReviews, role]);
 
   return (
     <div className="flex h-full flex-col px-4 py-6">
@@ -62,6 +75,11 @@ function Sidebar() {
             }
           >
             {link.label}
+            {role === "FACULTY" && link.badge > 0 && (
+              <span className="ml-2 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                {link.badge}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

@@ -9,6 +9,7 @@ import {
   PieChart,
   Pie,
   Cell,
+  Legend,
 } from "recharts";
 import {
   BarChart3,
@@ -47,6 +48,34 @@ function MetricCard({ title, value, icon, trend }) {
         {trend}
       </p>
     </div>
+  );
+}
+
+function renderPieLabel({
+  cx,
+  cy,
+  midAngle,
+  innerRadius,
+  outerRadius,
+  name,
+  value,
+}) {
+  const RADIAN = Math.PI / 180;
+  const radius = outerRadius + 24;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="#64748b"
+      textAnchor={x > cx ? "start" : "end"}
+      dominantBaseline="central"
+      fontSize={12}
+    >
+      {`${name}: ${value}`}
+    </text>
   );
 }
 
@@ -195,7 +224,7 @@ function AdminDashboard() {
                     cx="50%"
                     cy="50%"
                     outerRadius={90}
-                    label
+                    label={renderPieLabel}
                   >
                     {userDistributionData.map((entry, index) => (
                       <Cell
@@ -205,6 +234,7 @@ function AdminDashboard() {
                     ))}
                   </Pie>
                   <Tooltip />
+                  <Legend />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -212,12 +242,7 @@ function AdminDashboard() {
         </div>
       </div>
 
-      <div>
-        <h2 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">
-          Recent Activity
-        </h2>
-        <ActivityFeed maxItems={6} />
-      </div>
+      <ActivityFeed maxItems={6} />
     </div>
   );
 }

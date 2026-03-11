@@ -1,7 +1,8 @@
-import { BookOpen, Clock, Eye, TrendingUp } from "lucide-react";
-import KpiCard from "../../components/saas/KpiCard";
+import { BookOpen, Clock, FileText, TrendingUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import KpiCard from "../../components/saas/KpiCard";
+import ActivityFeed from "../../components/ActivityFeed";
 import { getStudentDashboard } from "../../services/studentDashboardService";
 
 function StudentDashboard() {
@@ -22,25 +23,57 @@ function StudentDashboard() {
 
   const kpiData = [
     {
-      title: "Total Cases",
+      title: "Available Cases",
       value: String(dashboard.totalCases),
       icon: BookOpen,
-      trend: { value: 0, isPositive: true },
-      description: "Available to you",
+      trend: { value: dashboard.activeCases, isPositive: true },
+      description: `${dashboard.activeCases} still open for submission`,
     },
     {
       title: "My Submissions",
       value: String(dashboard.mySubmissions),
-      icon: Clock,
-      trend: { value: 0, isPositive: true },
-      description: "This semester",
+      icon: FileText,
+      trend: { value: dashboard.pendingReview, isPositive: false },
+      description: `${dashboard.pendingReview} awaiting review`,
     },
     {
       title: "Completion Rate",
       value: `${dashboard.completionRate}%`,
       icon: TrendingUp,
+      trend: {
+        value: dashboard.completionRate,
+        isPositive: dashboard.completionRate >= 50,
+      },
+      description:
+        dashboard.completionRate >= 50 ? "Good progress!" : "Keep going!",
+    },
+    {
+      title: "Pending Review",
+      value: String(dashboard.pendingReview),
+      icon: Clock,
       trend: { value: 0, isPositive: true },
-      description: "Above average",
+      description: "Submitted, awaiting faculty",
+    },
+  ];
+
+  const breakdownItems = [
+    {
+      label: "Submitted",
+      value: dashboard.submitted,
+      color: "bg-sky-500",
+      max: dashboard.mySubmissions,
+    },
+    {
+      label: "Pending Review",
+      value: dashboard.pendingReview,
+      color: "bg-amber-500",
+      max: dashboard.mySubmissions,
+    },
+    {
+      label: "Evaluated",
+      value: dashboard.mySubmissions - dashboard.pendingReview,
+      color: "bg-emerald-500",
+      max: dashboard.mySubmissions,
     },
   ];
 
@@ -60,9 +93,9 @@ function StudentDashboard() {
         </span>
       </div>
 
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {isLoading
-          ? Array.from({ length: 3 }).map((_, index) => (
+          ? Array.from({ length: 4 }).map((_, index) => (
               <div
                 key={index}
                 className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900"
@@ -84,87 +117,103 @@ function StudentDashboard() {
             ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">
-            Quick Actions
-          </h2>
-          <div className="space-y-3">
-            <button
-              onClick={() => navigate("/cases")}
-              className="w-full rounded-lg border border-slate-200 p-3 text-left transition-colors hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
-            >
-              <div className="flex items-center gap-3">
-                <Eye className="h-5 w-5 text-blue-600" />
-                <div>
-                  <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                    View Cases
-                  </div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">
-                    Browse available case studies
-                  </div>
-                </div>
-              </div>
-            </button>
-
-            <button
-              onClick={() => navigate("/cases")}
-              className="w-full rounded-lg border border-slate-200 p-3 text-left transition-colors hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
-            >
-              <div className="flex items-center gap-3">
-                <BookOpen className="h-5 w-5 text-emerald-600" />
-                <div>
-                  <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                    Submit Solutions
-                  </div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">
-                    Open a case and submit your work
-                  </div>
-                </div>
-              </div>
-            </button>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <button
+          onClick={() => navigate("/cases")}
+          className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
+        >
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+            <BookOpen className="h-5 w-5" />
           </div>
+          <div className="text-left">
+            <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+              Browse Cases
+            </div>
+            <div className="text-xs text-slate-500">
+              {dashboard.totalCases} available
+            </div>
+          </div>
+        </button>
+
+        <button
+          onClick={() => navigate("/student/submissions")}
+          className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-emerald-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
+        >
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+            <FileText className="h-5 w-5" />
+          </div>
+          <div className="text-left">
+            <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+              My Submissions
+            </div>
+            <div className="text-xs text-slate-500">
+              {dashboard.mySubmissions} submitted
+            </div>
+          </div>
+        </button>
+
+        <button
+          onClick={() => navigate("/cases")}
+          className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-violet-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
+        >
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
+            <TrendingUp className="h-5 w-5" />
+          </div>
+          <div className="text-left">
+            <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+              Track Progress
+            </div>
+            <div className="text-xs text-slate-500">
+              {dashboard.completionRate}% complete
+            </div>
+          </div>
+        </button>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <ActivityFeed maxItems={6} />
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">
-            Student Summary
+          <h2 className="mb-4 text-sm font-semibold text-slate-800 dark:text-slate-100">
+            Submission Breakdown
           </h2>
           {isLoading ? (
-            <div className="space-y-3 text-sm">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="flex justify-between">
-                  <div className="h-4 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-                  <div className="h-4 w-10 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-                </div>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="h-8 animate-pulse rounded bg-slate-100 dark:bg-slate-800"
+                />
               ))}
             </div>
+          ) : dashboard.mySubmissions === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-300 py-6 text-center text-xs text-slate-500">
+              No submissions yet. <br />
+              <button
+                onClick={() => navigate("/cases")}
+                className="mt-2 text-blue-600 underline"
+              >
+                Browse cases to get started
+              </button>
+            </div>
           ) : (
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-600 dark:text-slate-400">
-                  Active Cases
-                </span>
-                <span className="font-medium text-slate-900 dark:text-slate-100">
-                  {dashboard.activeCases}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-600 dark:text-slate-400">
-                  Submitted
-                </span>
-                <span className="font-medium text-slate-900 dark:text-slate-100">
-                  {dashboard.submitted}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-600 dark:text-slate-400">
-                  Pending Review
-                </span>
-                <span className="font-medium text-slate-900 dark:text-slate-100">
-                  {dashboard.pendingReview}
-                </span>
-              </div>
+            <div className="space-y-3">
+              {breakdownItems.map(({ label, value, color, max }) => (
+                <div key={label}>
+                  <div className="mb-1 flex justify-between text-xs text-slate-600 dark:text-slate-400">
+                    <span>{label}</span>
+                    <span className="font-medium">{value}</span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-800">
+                    <div
+                      className={`h-2 rounded-full ${color} transition-all duration-500`}
+                      style={{ width: max > 0 ? `${(value / max) * 100}%` : "0%" }}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

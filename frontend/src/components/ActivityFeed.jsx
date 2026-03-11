@@ -19,13 +19,28 @@ function formatRelativeTime(timestamp) {
   return `${diffDay} day${diffDay === 1 ? "" : "s"} ago`;
 }
 
+function getErrorMessage(error) {
+  const apiMessage = error?.response?.data?.message;
+
+  if (typeof apiMessage === "string" && apiMessage.trim()) {
+    return apiMessage;
+  }
+
+  if (typeof error?.message === "string" && error.message.trim()) {
+    return error.message;
+  }
+
+  return "Unable to load recent activity.";
+}
+
 function ActivityFeed({ maxItems = 8, courseId }) {
   const { role } = useContext(AuthContext);
 
   const {
     data: activities = [],
     isLoading: loading,
-    isError: error,
+    isError,
+    error,
   } = useQuery({
     queryKey: ["activity-feed", role, courseId, maxItems],
     enabled: Boolean(role),
@@ -83,19 +98,19 @@ function ActivityFeed({ maxItems = 8, courseId }) {
         </div>
       )}
 
-      {!loading && error && (
+      {!loading && isError && (
         <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-center text-xs text-slate-600 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
-          Unable to load dashboard data
+          {getErrorMessage(error)}
         </div>
       )}
 
-      {!loading && !error && activities.length === 0 && (
+      {!loading && !isError && activities.length === 0 && (
         <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-center text-xs text-slate-600 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
           No recent activity yet.
         </div>
       )}
 
-      {!loading && !error && activities.length > 0 && (
+      {!loading && !isError && activities.length > 0 && (
         <div className="divide-y divide-slate-100 dark:divide-slate-700">
           {activities.map((activity) => (
             <div

@@ -45,8 +45,10 @@ const caseService = {
     return response.data?.data ?? response.data;
   },
 
-  async updateCase(caseId, payload) {
-    const response = await axiosInstance.put(`/faculty/cases/${caseId}`, payload);
+  async updateCase(caseId, payload, role) {
+    const url =
+      role === "ADMIN" ? `/cases/${caseId}` : `/faculty/cases/${caseId}`;
+    const response = await axiosInstance.put(url, payload);
     return response.data?.data ?? response.data;
   },
 

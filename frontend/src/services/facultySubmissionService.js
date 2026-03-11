@@ -11,11 +11,8 @@ const facultySubmissionService = {
     return response.data;
   },
 
-  async evaluateSubmission(submissionId, score, feedback) {
-    const response = await axiosInstance.put(`/submissions/${submissionId}/evaluate`, {
-      score,
-      feedback,
-    });
+  async evaluateSubmission(submissionId, payload) {
+    const response = await axiosInstance.put(`/submissions/${submissionId}/evaluate`, payload);
     return response.data;
   },
 };

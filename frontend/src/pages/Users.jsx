@@ -5,6 +5,7 @@ import {
   createUser,
   deleteUser,
   getUsers,
+  resetUserPassword,
 } from "../api/userService";
 
 const INITIAL_FORM = {
@@ -12,6 +13,13 @@ const INITIAL_FORM = {
   email: "",
   password: "",
   role: "STUDENT",
+};
+
+const INITIAL_RESET_FORM = {
+  userId: null,
+  fullName: "",
+  newPassword: "",
+  confirmPassword: "",
 };
 
 function validateForm(form) {
@@ -26,12 +34,22 @@ function validateForm(form) {
   return null;
 }
 
+function validateResetForm(form) {
+  if (!form.newPassword) return "New password is required";
+  if (!form.confirmPassword) return "Confirm password is required";
+  if (form.newPassword !== form.confirmPassword) return "Passwords do not match";
+  return null;
+}
+
 function Users() {
   const [page, setPage] = useState(0);
   const [size] = useState(5);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [form, setForm] = useState(INITIAL_FORM);
+  const [resetForm, setResetForm] = useState(INITIAL_RESET_FORM);
   const [formError, setFormError] = useState("");
+  const [resetError, setResetError] = useState("");
   const queryClient = useQueryClient();
 
   const {
@@ -72,10 +90,43 @@ function Users() {
     },
   });
 
+  const resetPasswordMutation = useMutation({
+    mutationFn: resetUserPassword,
+    onSuccess: () => {
+      toast.success("Password reset successfully");
+      setIsResetModalOpen(false);
+      setResetForm(INITIAL_RESET_FORM);
+      setResetError("");
+    },
+    onError: (error) => {
+      const message =
+        error?.response?.data?.message || "Failed to reset password";
+      setResetError(message);
+      toast.error(message);
+    },
+  });
+
   const openAddParticipantModal = () => {
     setIsModalOpen(true);
     setForm(INITIAL_FORM);
     setFormError("");
+  };
+
+  const openResetPasswordModal = (user) => {
+    setIsResetModalOpen(true);
+    setResetForm({
+      userId: user.id,
+      fullName: user.fullName,
+      newPassword: "",
+      confirmPassword: "",
+    });
+    setResetError("");
+  };
+
+  const closeResetPasswordModal = () => {
+    setIsResetModalOpen(false);
+    setResetForm(INITIAL_RESET_FORM);
+    setResetError("");
   };
 
   const handleDelete = async (id) => {
@@ -100,6 +151,22 @@ function Users() {
       email: form.email.trim().toLowerCase(),
       password: form.password,
       role: form.role,
+    });
+  };
+
+  const handleResetPassword = (e) => {
+    e.preventDefault();
+
+    const error = validateResetForm(resetForm);
+    if (error) {
+      setResetError(error);
+      return;
+    }
+
+    setResetError("");
+    resetPasswordMutation.mutate({
+      userId: resetForm.userId,
+      newPassword: resetForm.newPassword,
     });
   };
 
@@ -140,29 +207,40 @@ function Users() {
         )}
 
         {!isLoading && !isError && users.length > 0 && (
-        <ul className="divide-y divide-slate-200 dark:divide-gray-700">
-          {users.map((user) => (
-            <li
-              key={user.id}
-              className="flex flex-col gap-3 py-3 text-slate-700 dark:text-gray-200 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div>
-                <p className="font-medium">{user.fullName}</p>
-                <p className="text-slate-500 dark:text-gray-400">{user.email}</p>
-                <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                  {user.role}
-                </p>
-              </div>
-              <button
-                onClick={() => handleDelete(user.id)}
-                disabled={deleteMutation.isPending}
-                className="w-fit rounded bg-red-500 px-3 py-1 text-white hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+          <ul className="divide-y divide-slate-200 dark:divide-gray-700">
+            {users.map((user) => (
+              <li
+                key={user.id}
+                className="flex flex-col gap-3 py-3 text-slate-700 dark:text-gray-200 sm:flex-row sm:items-center sm:justify-between"
               >
-                Delete
-              </button>
-            </li>
-          ))}
-        </ul>
+                <div>
+                  <p className="font-medium">{user.fullName}</p>
+                  <p className="text-slate-500 dark:text-gray-400">{user.email}</p>
+                  <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    {user.role}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openResetPasswordModal(user)}
+                    disabled={resetPasswordMutation.isPending}
+                    className="w-fit rounded bg-amber-500 px-3 py-1 text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Reset Password
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(user.id)}
+                    disabled={deleteMutation.isPending}
+                    className="w-fit rounded bg-red-500 px-3 py-1 text-white hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -282,6 +360,83 @@ function Users() {
                   className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {createMutation.isPending ? "Creating..." : "Create User"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isResetModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-slate-800">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  Reset Password
+                </h3>
+                {resetForm.fullName && (
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    {resetForm.fullName}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={closeResetPasswordModal}
+                className="rounded px-2 py-1 text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+              >
+                X
+              </button>
+            </div>
+
+            <form className="space-y-4" onSubmit={handleResetPassword}>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  value={resetForm.newPassword}
+                  onChange={(e) =>
+                    setResetForm((prev) => ({ ...prev, newPassword: e.target.value }))
+                  }
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  value={resetForm.confirmPassword}
+                  onChange={(e) =>
+                    setResetForm((prev) => ({ ...prev, confirmPassword: e.target.value }))
+                  }
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                />
+              </div>
+
+              {resetError && (
+                <p className="text-sm text-red-600 dark:text-red-400">{resetError}</p>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={closeResetPasswordModal}
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={resetPasswordMutation.isPending}
+                  className="rounded-md bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {resetPasswordMutation.isPending ? "Resetting..." : "Submit"}
                 </button>
               </div>
             </form>
