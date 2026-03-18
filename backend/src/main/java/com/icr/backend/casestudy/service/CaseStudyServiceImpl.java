@@ -4,8 +4,10 @@ import com.icr.backend.casestudy.dto.CaseStudyRequest;
 import com.icr.backend.casestudy.dto.CaseStudyResponse;
 import com.icr.backend.casestudy.dto.UpdateCaseStudyRequest;
 import com.icr.backend.casestudy.entity.CaseStudy;
+import com.icr.backend.casestudy.enums.ActivityEvent;
 import com.icr.backend.casestudy.enums.CaseCategory;
 import com.icr.backend.casestudy.enums.SubmissionType;
+import com.icr.backend.casestudy.repository.CaseCoMappingRepository;
 import com.icr.backend.casestudy.repository.CaseStudyRepository;
 import com.icr.backend.course.entity.Course;
 import com.icr.backend.course.repository.CourseRepository;
@@ -13,8 +15,11 @@ import com.icr.backend.entity.User;
 import com.icr.backend.enums.CaseStatus;
 import com.icr.backend.exception.ResourceNotFoundException;
 import com.icr.backend.repository.UserRepository;
+import com.icr.backend.service.ActivityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -23,6 +28,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,12 +39,15 @@ public class CaseStudyServiceImpl implements CaseStudyService {
     private final CaseStudyRepository caseStudyRepository;
     private final CourseRepository courseRepository;
     private final UserRepository userRepository;
+    private final ActivityService activityService;
+    private final CaseCoMappingService caseCoMappingService;
+    private final CaseCoMappingRepository caseCoMappingRepository;
 
     @Override
     public CaseStudyResponse createCase(CaseStudyRequest request) {
 
         Course course = courseRepository.findById(request.getCourseId())
-                .orElseThrow(() -> new RuntimeException("Course not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Course not found"));
 
         var authentication = SecurityContextHolder.getContext().getAuthentication();
 
@@ -72,47 +81,63 @@ public class CaseStudyServiceImpl implements CaseStudyService {
                 .build();
 
         CaseStudy saved = caseStudyRepository.save(caseStudy);
+        saveCaseCoMappings(saved.getId(), request.getCoIds());
 
         return mapToResponse(saved);
     }
 
     @Override
-    public List<CaseStudyResponse> getCasesByCourse(Long courseId, CaseStatus status) {
+    public Page<CaseStudyResponse> getAllCases(CaseStatus status, Pageable pageable) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
         boolean isAdmin = auth != null && auth.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
         boolean isFaculty = auth != null && auth.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_FACULTY"));
-        List<CaseStudy> allCases = caseStudyRepository.findByCourseId(courseId);
 
-        List<CaseStudy> visibleCases;
         if (isAdmin) {
-            visibleCases = allCases;
-        } else if (isFaculty) {
+            return caseStudyRepository.findAllVisibleCases(status, pageable).map(this::mapToResponse);
+        }
+
+        if (isFaculty) {
             String email = auth.getName();
             User faculty = userRepository.findByEmail(email)
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
-            visibleCases = allCases.stream()
-                    .filter(c -> c.getStatus() == CaseStatus.PUBLISHED
-                            || (c.getCreatedBy() != null
-                            && c.getCreatedBy().getId().equals(faculty.getId())))
-                    .collect(Collectors.toList());
-        } else {
-            visibleCases = allCases.stream()
-                    .filter(c -> c.getStatus() == CaseStatus.PUBLISHED)
-                    .collect(Collectors.toList());
-            return visibleCases.stream().map(this::mapToResponse).collect(Collectors.toList());
+            return caseStudyRepository.findVisibleCasesForFaculty(faculty.getId(), status, pageable)
+                    .map(this::mapToResponse);
         }
 
-        if (status != null) {
-            visibleCases = visibleCases.stream()
-                    .filter(c -> c.getStatus() == status)
-                    .collect(Collectors.toList());
+        Page<CaseStudy> page = caseStudyRepository.findByStatus(CaseStatus.PUBLISHED, pageable);
+        return page.map(this::mapToResponse);
+    }
+
+    @Override
+    public Page<CaseStudyResponse> getCasesByCourse(Long courseId, CaseStatus status, Pageable pageable) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        boolean isAdmin = auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        boolean isFaculty = auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_FACULTY"));
+        if (isAdmin) {
+            Page<CaseStudy> page = status != null
+                    ? caseStudyRepository.findByCourseIdAndStatus(courseId, status, pageable)
+                    : caseStudyRepository.findByCourseId(courseId, pageable);
+            return page.map(this::mapToResponse);
         }
 
-        return visibleCases.stream().map(this::mapToResponse).collect(Collectors.toList());
+        if (isFaculty) {
+            String email = auth.getName();
+            User faculty = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            return caseStudyRepository.findVisibleCasesForFaculty(courseId, faculty.getId(), status, pageable)
+                    .map(this::mapToResponse);
+        }
+
+        Page<CaseStudy> page = caseStudyRepository.findByCourseIdAndStatus(courseId, CaseStatus.PUBLISHED, pageable);
+        return page.map(this::mapToResponse);
     }
 
     @Override
@@ -152,6 +177,13 @@ public class CaseStudyServiceImpl implements CaseStudyService {
 
         if (isStudent && caseStudy.getStatus() != CaseStatus.PUBLISHED) {
             throw new ResourceNotFoundException("Case not found with id: " + id);
+        }
+
+        if (isStudent) {
+            String email = auth.getName();
+            User student = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+            activityService.logEvent(student.getId(), caseStudy.getId(), ActivityEvent.VIEWED);
         }
 
         if (isFaculty && caseStudy.getStatus() != CaseStatus.PUBLISHED) {
@@ -222,15 +254,15 @@ public class CaseStudyServiceImpl implements CaseStudyService {
                 if (request.getDifficulty() != null) caseStudy.setDifficulty(request.getDifficulty());
                 if (request.getDueDate() != null) caseStudy.setDueDate(request.getDueDate().atStartOfDay());
                 if (request.getMaxMarks() != null) caseStudy.setMaxMarks(request.getMaxMarks());
-                if (request.getSubmissionType() != null) {
-                    try {
-                        caseStudy.setSubmissionType(SubmissionType.valueOf(request.getSubmissionType().trim().toUpperCase()));
-                    } catch (Exception ignored) {}
-                }
+                if (request.getSubmissionType() != null) caseStudy.setSubmissionType(request.getSubmissionType());
                 if (request.getCourseId() != null) {
                     Course course = courseRepository.findById(request.getCourseId())
                             .orElseThrow(() -> new ResourceNotFoundException("Course not found"));
                     caseStudy.setCourse(course);
+                }
+                if (request.getCoIds() != null) {
+                    caseCoMappingRepository.deleteAllByCaseStudyId(caseId);
+                    saveCaseCoMappings(caseId, request.getCoIds());
                 }
             } else if (caseStudy.getStatus() == CaseStatus.PUBLISHED) {
                 if (request.getDueDate() != null) caseStudy.setDueDate(request.getDueDate().atStartOfDay());
@@ -245,6 +277,15 @@ public class CaseStudyServiceImpl implements CaseStudyService {
         }
     }
 
+    @Override
+    public void deleteCase(Long caseId) {
+        CaseStudy caseStudy = caseStudyRepository.findById(caseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Case not found with id: " + caseId));
+
+        caseCoMappingRepository.deleteAllByCaseStudyId(caseId);
+        caseStudyRepository.delete(caseStudy);
+    }
+
     private boolean isValidTransition(CaseStatus currentStatus, CaseStatus newStatus) {
         if (currentStatus == null || newStatus == null) {
             return false;
@@ -252,10 +293,7 @@ public class CaseStudyServiceImpl implements CaseStudyService {
 
         Map<CaseStatus, CaseStatus> validNextTransition = Map.of(
                 CaseStatus.DRAFT, CaseStatus.PUBLISHED,
-                CaseStatus.PUBLISHED, CaseStatus.SUBMISSION_OPEN,
-                CaseStatus.SUBMISSION_OPEN, CaseStatus.UNDER_REVIEW,
-                CaseStatus.UNDER_REVIEW, CaseStatus.EVALUATED,
-                CaseStatus.EVALUATED, CaseStatus.ARCHIVED
+                CaseStatus.PUBLISHED, CaseStatus.ARCHIVED
         );
 
         return validNextTransition.get(currentStatus) == newStatus;
@@ -281,8 +319,20 @@ public class CaseStudyServiceImpl implements CaseStudyService {
                 .constraints(caseStudy.getConstraints())
                 .referenceLinks(caseStudy.getReferenceLinks())
                 .estimatedHours(caseStudy.getEstimatedHours())
+                .coIds(caseCoMappingService.getCoIdsForCase(caseStudy.getId()))
                 .createdAt(caseStudy.getCreatedAt())
                 .build();
+    }
+
+    private void saveCaseCoMappings(Long caseId, List<Long> coIds) {
+        if (coIds == null || coIds.isEmpty()) {
+            return;
+        }
+
+        coIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .forEach(coId -> caseCoMappingService.mapCaseToCo(caseId, coId));
     }
 
     private CaseCategory parseCategory(String categoryValue) {

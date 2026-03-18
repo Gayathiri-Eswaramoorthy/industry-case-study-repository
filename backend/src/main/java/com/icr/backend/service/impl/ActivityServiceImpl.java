@@ -1,13 +1,18 @@
 package com.icr.backend.service.impl;
 
 import com.icr.backend.casestudy.entity.CaseStudy;
+import com.icr.backend.casestudy.entity.CaseStudyActivity;
 import com.icr.backend.casestudy.entity.CaseSubmission;
+import com.icr.backend.casestudy.enums.ActivityEvent;
 import com.icr.backend.casestudy.enums.SubmissionStatus;
+import com.icr.backend.casestudy.repository.CaseStudyActivityRepository;
 import com.icr.backend.casestudy.repository.CaseStudyRepository;
 import com.icr.backend.casestudy.repository.CaseSubmissionRepository;
 import com.icr.backend.dto.ActivityItemResponse;
+import com.icr.backend.dto.ActivityResponse;
 import com.icr.backend.entity.User;
 import com.icr.backend.enums.CaseStatus;
+import com.icr.backend.exception.ResourceNotFoundException;
 import com.icr.backend.repository.UserRepository;
 import com.icr.backend.service.ActivityService;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +40,7 @@ public class ActivityServiceImpl implements ActivityService {
     private final UserRepository userRepository;
     private final CaseStudyRepository caseStudyRepository;
     private final CaseSubmissionRepository caseSubmissionRepository;
+    private final CaseStudyActivityRepository caseStudyActivityRepository;
 
     @Override
     public List<ActivityItemResponse> getStudentActivity(int limit) {
@@ -135,8 +141,25 @@ public class ActivityServiceImpl implements ActivityService {
             return List.of();
         }
 
-        List<CaseSubmission> submissions = caseSubmissionRepository.findByCaseIdInOrderBySubmittedAtDesc(caseIds);
         List<ActivityItemResponse> items = new ArrayList<>();
+        for (CaseStudy caseStudy : facultyCases) {
+            if (caseStudy == null || caseStudy.getId() == null || caseStudy.getCreatedAt() == null) {
+                continue;
+            }
+
+            if (courseId != null && (caseStudy.getCourse() == null || !courseId.equals(caseStudy.getCourse().getId()))) {
+                continue;
+            }
+
+            items.add(ActivityItemResponse.builder()
+                    .id("case-" + caseStudy.getId())
+                    .type("case")
+                    .message("You created: " + caseStudy.getTitle())
+                    .timestamp(caseStudy.getCreatedAt())
+                    .build());
+        }
+
+        List<CaseSubmission> submissions = caseSubmissionRepository.findByCaseIdInOrderBySubmittedAtDesc(caseIds);
         Set<Long> studentIds = submissions.stream()
                 .filter(submission -> submission != null && submission.getStudentId() != null)
                 .map(CaseSubmission::getStudentId)
@@ -264,6 +287,69 @@ public class ActivityServiceImpl implements ActivityService {
             log.error("Failed to load admin activity", ex);
             return List.of();
         }
+    }
+
+    @Override
+    public void logEvent(Long studentId, Long caseStudyId, ActivityEvent event) {
+        if (studentId == null || caseStudyId == null || event == null) {
+            return;
+        }
+
+        boolean alreadyLogged = caseStudyActivityRepository
+                .existsByStudentIdAndCaseStudyIdAndEvent(studentId, caseStudyId, event);
+        if (alreadyLogged) {
+            return;
+        }
+
+        User student = userRepository.findById(studentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found with id: " + studentId));
+        CaseStudy caseStudy = caseStudyRepository.findById(caseStudyId)
+                .orElseThrow(() -> new ResourceNotFoundException("Case not found with id: " + caseStudyId));
+
+        CaseStudyActivity activity = CaseStudyActivity.builder()
+                .student(student)
+                .caseStudy(caseStudy)
+                .event(event)
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        caseStudyActivityRepository.save(activity);
+    }
+
+    @Override
+    public void logCurrentStudentEvent(Long caseStudyId, ActivityEvent event) {
+        String email = getAuthenticatedEmail();
+        if (email == null) {
+            return;
+        }
+
+        User student = userRepository.findByEmail(email).orElse(null);
+        if (student == null || student.getId() == null) {
+            return;
+        }
+
+        logEvent(student.getId(), caseStudyId, event);
+    }
+
+    @Override
+    public List<ActivityResponse> getStudentCaseTimeline(Long caseStudyId) {
+        String email = getAuthenticatedEmail();
+        if (email == null) {
+            return List.of();
+        }
+
+        User student = userRepository.findByEmail(email).orElse(null);
+        if (student == null || student.getId() == null) {
+            return List.of();
+        }
+
+        return caseStudyActivityRepository.findByStudentIdAndCaseStudyIdOrderByTimestampAsc(student.getId(), caseStudyId)
+                .stream()
+                .map(activity -> ActivityResponse.builder()
+                        .event(activity.getEvent().name())
+                        .timestamp(activity.getTimestamp())
+                        .build())
+                .toList();
     }
 
     private String getAuthenticatedEmail() {

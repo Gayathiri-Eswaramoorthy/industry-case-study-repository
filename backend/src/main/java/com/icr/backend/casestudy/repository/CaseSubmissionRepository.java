@@ -5,6 +5,7 @@ import com.icr.backend.casestudy.enums.SubmissionStatus;
 import com.icr.backend.casestudy.dto.FacultyCaseSubmissionDTO;
 import com.icr.backend.casestudy.dto.FacultySubmissionDTO;
 import com.icr.backend.dto.FacultyCaseSubmissionCountDTO;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -72,6 +73,12 @@ public interface CaseSubmissionRepository extends JpaRepository<CaseSubmission, 
     Optional<CaseSubmission> findByIdAndCaseIdIn(Long submissionId, List<Long> caseIds);
 
     List<CaseSubmission> findByStudentId(Long studentId);
+
+    Page<CaseSubmission> findByStudentId(Long studentId, Pageable pageable);
+
+    List<CaseSubmission> findByStudentIdAndStatus(Long studentId, SubmissionStatus status);
+
+    List<CaseSubmission> findByStatusAndMarksAwardedIsNotNull(SubmissionStatus status);
 
     long countByStatus(SubmissionStatus status);
 

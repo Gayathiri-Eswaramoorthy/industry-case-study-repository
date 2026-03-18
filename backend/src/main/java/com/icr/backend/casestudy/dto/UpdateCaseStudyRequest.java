@@ -2,10 +2,15 @@ package com.icr.backend.casestudy.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.icr.backend.casestudy.enums.DifficultyLevel;
+import com.icr.backend.casestudy.enums.SubmissionType;
 import com.icr.backend.enums.CaseStatus;
+import jakarta.validation.constraints.Future;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import lombok.*;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Getter
 @Setter
@@ -14,16 +19,23 @@ import java.time.LocalDate;
 @Builder
 public class UpdateCaseStudyRequest {
 
+    @Size(max = 200)
     private String title;
+
+    @Size(max = 2000)
     private String description;
     private String category;
-    private String submissionType;
+    private SubmissionType submissionType;
     private DifficultyLevel difficulty;
 
     @JsonFormat(pattern = "yyyy-MM-dd")
+    @Future(message = "Due date must be in the future")
     private LocalDate dueDate;
 
     private CaseStatus status;
+
+    @Min(value = 1, message = "Max marks must be at least 1")
     private Integer maxMarks;
     private Long courseId;
+    private List<Long> coIds;
 }

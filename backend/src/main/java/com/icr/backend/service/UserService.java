@@ -9,7 +9,7 @@ import com.icr.backend.dto.response.DashboardStatsResponse;
 
 public interface UserService {
 
-    PageResponse<UserResponse> getAllUsers(int page, int size);
+    PageResponse<UserResponse> getAllUsers(int page, int size, String role);
 
     UserResponse getUserById(Long id);
 

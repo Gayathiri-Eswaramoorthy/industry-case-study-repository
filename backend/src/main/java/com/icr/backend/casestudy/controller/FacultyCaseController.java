@@ -5,6 +5,7 @@ import com.icr.backend.casestudy.dto.CaseStudyResponse;
 import com.icr.backend.casestudy.dto.UpdateCaseStudyRequest;
 import com.icr.backend.casestudy.service.CaseSubmissionService;
 import com.icr.backend.casestudy.service.CaseStudyService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -29,7 +30,7 @@ public class FacultyCaseController {
     @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN')")
     public ResponseEntity<CaseStudyResponse> updateCase(
             @PathVariable Long id,
-            @RequestBody UpdateCaseStudyRequest request) {
+            @Valid @RequestBody UpdateCaseStudyRequest request) {
 
         return ResponseEntity.ok(caseStudyService.updateCase(id, request));
     }

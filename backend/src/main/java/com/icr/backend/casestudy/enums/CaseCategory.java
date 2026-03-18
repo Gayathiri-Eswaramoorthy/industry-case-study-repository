@@ -5,5 +5,10 @@ public enum CaseCategory {
     FINTECH,
     HEALTHCARE,
     AI_ML,
-    PRODUCT
+    PRODUCT,
+    FINANCE,
+    OPERATIONS,
+    MARKETING,
+    TECHNOLOGY,
+    STRATEGY
 }

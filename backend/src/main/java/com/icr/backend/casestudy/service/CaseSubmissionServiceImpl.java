@@ -8,6 +8,7 @@ import com.icr.backend.casestudy.dto.SubmissionRequest;
 import com.icr.backend.casestudy.entity.CaseStudy;
 import com.icr.backend.casestudy.entity.CaseSubmission;
 import com.icr.backend.casestudy.entity.SubmissionCoScore;
+import com.icr.backend.casestudy.enums.ActivityEvent;
 import com.icr.backend.casestudy.enums.SubmissionStatus;
 import com.icr.backend.casestudy.enums.SubmissionType;
 import com.icr.backend.casestudy.repository.CaseStudyRepository;
@@ -18,7 +19,10 @@ import com.icr.backend.enums.CaseStatus;
 import com.icr.backend.exception.DuplicateSubmissionException;
 import com.icr.backend.exception.ResourceNotFoundException;
 import com.icr.backend.repository.UserRepository;
+import com.icr.backend.service.ActivityService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -45,6 +49,7 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
     private final CaseStudyRepository caseStudyRepository;
     private final SubmissionCoScoreRepository submissionCoScoreRepository;
     private final UserRepository userRepository;
+    private final ActivityService activityService;
 
     @Override
     public CaseSubmissionResponse submitSolution(SubmissionRequest request, MultipartFile pdfFile) {
@@ -96,6 +101,9 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
 
         CaseSubmission saved = caseSubmissionRepository.save(submission);
 
+        activityService.logEvent(student.getId(), caseStudy.getId(), ActivityEvent.SUBMITTED);
+        activityService.logEvent(student.getId(), caseStudy.getId(), ActivityEvent.UNDER_REVIEW);
+
         return mapToResponse(saved);
     }
 
@@ -126,6 +134,8 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
 
         CaseSubmission savedSubmission = caseSubmissionRepository.save(submission);
 
+        activityService.logEvent(submission.getStudentId(), submission.getCaseId(), ActivityEvent.EVALUATED);
+
         if (request != null && request.getCoScores() != null && !request.getCoScores().isEmpty()) {
             submissionCoScoreRepository.deleteBySubmissionId(savedSubmission.getId());
             List<SubmissionCoScore> coScores = request.getCoScores().stream()
@@ -155,35 +165,27 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
     }
 
     @Override
-    public List<CaseSubmissionResponse> getMySubmissions() {
+    public Page<CaseSubmissionResponse> getMySubmissions(Pageable pageable) {
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
         if (auth == null || !auth.isAuthenticated()) {
-            return List.of();
+            return Page.empty(pageable);
         }
 
         String email = auth.getName();
 
         if (email == null || email.isBlank() || "anonymousUser".equalsIgnoreCase(email)) {
-            return List.of();
+            return Page.empty(pageable);
         }
 
         var studentOptional = userRepository.findByEmail(email);
         if (studentOptional.isEmpty() || studentOptional.get() == null || studentOptional.get().getId() == null) {
-            return List.of();
+            return Page.empty(pageable);
         }
 
-        List<CaseSubmission> submissions = caseSubmissionRepository.findByStudentId(studentOptional.get().getId());
-        if (submissions == null) {
-            return List.of();
-        }
-
-        return submissions
-                .stream()
-                .filter(Objects::nonNull)
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+        return caseSubmissionRepository.findByStudentId(studentOptional.get().getId(), pageable)
+                .map(this::mapToResponse);
     }
 
     @Override

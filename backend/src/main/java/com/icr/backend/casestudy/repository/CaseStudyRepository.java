@@ -2,7 +2,10 @@ package com.icr.backend.casestudy.repository;
 
 import com.icr.backend.casestudy.entity.CaseStudy;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import com.icr.backend.enums.CaseStatus;
 
 import java.time.LocalDateTime;
@@ -12,9 +15,53 @@ public interface CaseStudyRepository extends JpaRepository<CaseStudy, Long> {
 
     List<CaseStudy> findByCourseId(Long courseId);
 
+    Page<CaseStudy> findByCourseId(Long courseId, Pageable pageable);
+
     List<CaseStudy> findByStatus(CaseStatus status);
 
+    Page<CaseStudy> findByStatus(CaseStatus status, Pageable pageable);
+
     List<CaseStudy> findByCourseIdAndStatus(Long courseId, CaseStatus status);
+
+    Page<CaseStudy> findByCourseIdAndStatus(Long courseId, CaseStatus status, Pageable pageable);
+
+    @Query("""
+            SELECT c
+            FROM CaseStudy c
+            WHERE (:status IS NULL OR c.status = :status)
+            """)
+    Page<CaseStudy> findAllVisibleCases(
+            @Param("status") CaseStatus status,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT c
+            FROM CaseStudy c
+            WHERE (c.status = com.icr.backend.enums.CaseStatus.PUBLISHED
+                OR (c.status = com.icr.backend.enums.CaseStatus.DRAFT AND c.createdBy.id = :facultyId))
+              AND (:status IS NULL OR c.status = :status)
+            """)
+    Page<CaseStudy> findVisibleCasesForFaculty(
+            @Param("facultyId") Long facultyId,
+            @Param("status") CaseStatus status,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT c
+            FROM CaseStudy c
+            WHERE c.course.id = :courseId
+              AND (c.status = com.icr.backend.enums.CaseStatus.PUBLISHED
+                OR (c.status = com.icr.backend.enums.CaseStatus.DRAFT AND c.createdBy.id = :facultyId))
+              AND (:status IS NULL OR c.status = :status)
+            """)
+    Page<CaseStudy> findVisibleCasesForFaculty(
+            @Param("courseId") Long courseId,
+            @Param("facultyId") Long facultyId,
+            @Param("status") CaseStatus status,
+            Pageable pageable
+    );
 
     long countByStatus(CaseStatus status);
 
@@ -31,6 +78,12 @@ public interface CaseStudyRepository extends JpaRepository<CaseStudy, Long> {
     long countByCreatedBy_IdAndStatus(Long facultyId, CaseStatus status);
 
     long countByCreatedBy_IdAndStatusIn(Long createdById, List<CaseStatus> statuses);
+
+    long countByStatusOrCreatedBy_IdAndStatus(
+            CaseStatus publishedStatus,
+            Long createdById,
+            CaseStatus draftStatus
+    );
 
     List<CaseStudy> findByCreatedBy_Id(Long createdById);
 

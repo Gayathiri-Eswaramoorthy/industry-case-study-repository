@@ -7,6 +7,7 @@ import com.icr.backend.enums.CaseStatus;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -34,5 +35,6 @@ public class CaseStudyResponse {
     // expectedOutcome is intentionally excluded so it is never exposed in student-facing responses.
     private String referenceLinks;
     private Integer estimatedHours;
+    private List<Long> coIds;
     private LocalDateTime createdAt;
 }

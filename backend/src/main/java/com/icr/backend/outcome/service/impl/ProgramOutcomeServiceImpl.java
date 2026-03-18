@@ -1,5 +1,6 @@
 package com.icr.backend.outcome.service.impl;
 
+import com.icr.backend.exception.DuplicateResourceException;
 import com.icr.backend.outcome.dto.ProgramOutcomeRequest;
 import com.icr.backend.outcome.dto.ProgramOutcomeResponse;
 import com.icr.backend.outcome.entity.ProgramOutcome;
@@ -21,7 +22,7 @@ public class ProgramOutcomeServiceImpl implements ProgramOutcomeService {
     public ProgramOutcomeResponse createProgramOutcome(ProgramOutcomeRequest request) {
 
         if (programOutcomeRepository.existsByCode(request.getCode())) {
-            throw new RuntimeException("Program Outcome with this code already exists");
+            throw new DuplicateResourceException("Program Outcome with this code already exists");
         }
 
         ProgramOutcome programOutcome = ProgramOutcome.builder()

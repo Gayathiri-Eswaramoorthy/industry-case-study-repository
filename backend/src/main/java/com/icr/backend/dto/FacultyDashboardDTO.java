@@ -10,7 +10,8 @@ import lombok.NoArgsConstructor;
 public class FacultyDashboardDTO {
 
     private long totalCases;
+    private long ownCases;
     private long pendingReviews;
     private long evaluatedSubmissions;
-    private long activeCases;
+    private long publishedCases;
 }

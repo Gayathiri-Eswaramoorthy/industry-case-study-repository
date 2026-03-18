@@ -4,14 +4,19 @@ import com.icr.backend.casestudy.dto.CaseStudyRequest;
 import com.icr.backend.casestudy.dto.CaseStudyResponse;
 import com.icr.backend.casestudy.service.CaseStudyService;
 import com.icr.backend.dto.response.ApiResponse;
+import com.icr.backend.dto.response.PageResponse;
 import com.icr.backend.enums.CaseStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
@@ -40,10 +45,38 @@ public class CaseStudyController {
     private String caseMaterialUploadDir;
 
     // Faculty creates case (DRAFT by default)
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN','FACULTY','STUDENT')")
+    @Operation(summary = "Get all case studies")
+    public ApiResponse<PageResponse<CaseStudyResponse>> getAllCases(
+            @RequestParam(required = false) CaseStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        Page<CaseStudyResponse> cases = caseStudyService.getAllCases(
+                status,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"))
+        );
+
+        return ApiResponse.<PageResponse<CaseStudyResponse>>builder()
+                .success(true)
+                .message("Cases fetched successfully")
+                .data(PageResponse.<CaseStudyResponse>builder()
+                        .content(cases.getContent())
+                        .page(cases.getNumber())
+                        .size(cases.getSize())
+                        .totalElements(cases.getTotalElements())
+                        .totalPages(cases.getTotalPages())
+                        .last(cases.isLast())
+                        .build())
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
+
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasAnyRole('ADMIN','FACULTY')")
     @Operation(summary = "Create case study")
-    public CaseStudyResponse createCase(@RequestBody CaseStudyRequest request) {
+    public CaseStudyResponse createCase(@Valid @RequestBody CaseStudyRequest request) {
         return caseStudyService.createCase(request);
     }
 
@@ -51,7 +84,7 @@ public class CaseStudyController {
     @PreAuthorize("hasAnyRole('ADMIN','FACULTY')")
     @Operation(summary = "Create case study with case material")
     public CaseStudyResponse createCaseWithMaterial(
-            @RequestPart("request") CaseStudyRequest request,
+            @Valid @RequestPart("request") CaseStudyRequest request,
             @RequestPart(value = "caseMaterial", required = false) MultipartFile caseMaterial
     ) {
         if (caseMaterial != null && !caseMaterial.isEmpty()) {
@@ -64,17 +97,30 @@ public class CaseStudyController {
     @GetMapping("/course/{courseId}")
     @PreAuthorize("hasAnyRole('ADMIN','FACULTY','STUDENT')")
     @Operation(summary = "Get cases by course")
-    public ApiResponse<List<CaseStudyResponse>> getCasesByCourse(
+    public ApiResponse<PageResponse<CaseStudyResponse>> getCasesByCourse(
             @PathVariable Long courseId,
             Authentication authentication,
-            @RequestParam(required = false) CaseStatus status
+            @RequestParam(required = false) CaseStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
     ) {
-        List<CaseStudyResponse> cases = caseStudyService.getCasesByCourse(courseId, status);
+        Page<CaseStudyResponse> cases = caseStudyService.getCasesByCourse(
+                courseId,
+                status,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"))
+        );
 
-        return ApiResponse.<List<CaseStudyResponse>>builder()
+        return ApiResponse.<PageResponse<CaseStudyResponse>>builder()
                 .success(true)
                 .message("Cases fetched successfully")
-                .data(cases)
+                .data(PageResponse.<CaseStudyResponse>builder()
+                        .content(cases.getContent())
+                        .page(cases.getNumber())
+                        .size(cases.getSize())
+                        .totalElements(cases.getTotalElements())
+                        .totalPages(cases.getTotalPages())
+                        .last(cases.isLast())
+                        .build())
                 .timestamp(LocalDateTime.now())
                 .build();
     }
@@ -105,6 +151,20 @@ public class CaseStudyController {
                 .success(true)
                 .message("Case fetched successfully")
                 .data(response)
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN','FACULTY')")
+    @Operation(summary = "Delete case study")
+    public ApiResponse<Void> deleteCase(@PathVariable Long id) {
+        caseStudyService.deleteCase(id);
+
+        return ApiResponse.<Void>builder()
+                .success(true)
+                .message("Case deleted successfully")
+                .data(null)
                 .timestamp(LocalDateTime.now())
                 .build();
     }

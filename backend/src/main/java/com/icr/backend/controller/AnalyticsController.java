@@ -1,6 +1,8 @@
 package com.icr.backend.controller;
 
 import com.icr.backend.dto.DashboardStatsResponse;
+import com.icr.backend.dto.CoAttainmentSummaryDTO;
+import com.icr.backend.dto.TopCaseAnalyticsDTO;
 import com.icr.backend.service.AnalyticsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/analytics")
@@ -46,5 +49,19 @@ public class AnalyticsController {
     @Operation(summary = "Get submission analytics")
     public Map<String, Long> getSubmissionAnalytics() {
         return analyticsService.getSubmissionAnalytics();
+    }
+
+    @GetMapping("/co-attainment-summary")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Get platform-wide CO attainment summary")
+    public List<CoAttainmentSummaryDTO> getCoAttainmentSummary() {
+        return analyticsService.getCoAttainmentSummary();
+    }
+
+    @GetMapping("/top-cases")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Get top performing cases by average score")
+    public List<TopCaseAnalyticsDTO> getTopCases() {
+        return analyticsService.getTopCases();
     }
 }

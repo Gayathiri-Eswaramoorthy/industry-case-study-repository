@@ -6,6 +6,7 @@ import com.icr.backend.dto.response.PageResponse;
 import com.icr.backend.dto.response.UserResponse;
 import com.icr.backend.entity.Role;
 import com.icr.backend.entity.User;
+import com.icr.backend.enums.RoleType;
 import com.icr.backend.exception.DuplicateUserException;
 import com.icr.backend.exception.ResourceNotFoundException;
 import com.icr.backend.repository.RoleRepository;
@@ -33,12 +34,17 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
 
     @Override
-    public PageResponse<UserResponse> getAllUsers(int page, int size) {
+    public PageResponse<UserResponse> getAllUsers(int page, int size, String role) {
 
-        log.info("Fetching users with page {} and size {}", page, size);
+        log.info("Fetching users with page {}, size {}, role {}", page, size, role);
 
-        Page<User> userPage =
-                userRepository.findAll(PageRequest.of(page, size));
+        Page<User> userPage;
+        if (role != null && !role.equals("ALL")) {
+            RoleType roleType = RoleType.valueOf(role.trim().toUpperCase());
+            userPage = userRepository.findByRole_Name(roleType, PageRequest.of(page, size));
+        } else {
+            userPage = userRepository.findAll(PageRequest.of(page, size));
+        }
 
         List<UserResponse> content = userPage.getContent()
                 .stream()

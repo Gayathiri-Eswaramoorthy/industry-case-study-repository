@@ -12,5 +12,9 @@ public interface CaseCoMappingRepository extends JpaRepository<CaseCoMapping, Lo
 
     List<CaseCoMapping> findByCaseStudyId(Long caseId);
 
+    List<CaseCoMapping> findByCaseStudyIdIn(List<Long> caseIds);
+
     List<CaseCoMapping> findByCourseOutcomeId(Long coId);
+
+    void deleteAllByCaseStudyId(Long caseId);
 }

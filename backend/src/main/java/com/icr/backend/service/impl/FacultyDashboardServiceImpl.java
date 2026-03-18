@@ -31,12 +31,12 @@ public class FacultyDashboardServiceImpl implements FacultyDashboardService {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth == null || !auth.isAuthenticated()) {
-                return new FacultyDashboardDTO(0, 0, 0, 0);
+                return new FacultyDashboardDTO(0, 0, 0, 0, 0);
             }
 
             String email = auth.getName();
             if (email == null || email.isBlank() || "anonymousUser".equalsIgnoreCase(email)) {
-                return new FacultyDashboardDTO(0, 0, 0, 0);
+                return new FacultyDashboardDTO(0, 0, 0, 0, 0);
             }
 
             User faculty = userRepository.findByEmail(email)
@@ -49,24 +49,30 @@ public class FacultyDashboardServiceImpl implements FacultyDashboardService {
                     .map(CaseStudy::getId)
                     .toList();
 
-            long totalCases = caseStudyRepository.countByCreatedBy_Id(facultyId);
+            long ownCases = caseStudyRepository.countByCreatedBy_Id(facultyId);
+            long publishedCases = caseStudyRepository.countByStatus(CaseStatus.PUBLISHED);
+            long totalVisibleCases = caseStudyRepository.countByStatusOrCreatedBy_IdAndStatus(
+                    CaseStatus.PUBLISHED,
+                    facultyId,
+                    CaseStatus.DRAFT
+            );
             long pendingReviews = facultyCaseIds.isEmpty()
                     ? 0
                     : submissionRepository.countByCaseIdInAndStatus(facultyCaseIds, SubmissionStatus.SUBMITTED);
             long evaluatedSubmissions = facultyCaseIds.isEmpty()
                     ? 0
                     : submissionRepository.countByCaseIdInAndStatus(facultyCaseIds, SubmissionStatus.EVALUATED);
-            long activeCases = caseStudyRepository.countByCreatedBy_IdAndStatus(facultyId, CaseStatus.PUBLISHED);
 
             return new FacultyDashboardDTO(
-                    totalCases,
+                    totalVisibleCases,
+                    ownCases,
                     pendingReviews,
                     evaluatedSubmissions,
-                    activeCases
+                    publishedCases
             );
         } catch (Exception e) {
             log.error("Error loading faculty dashboard", e);
-            return new FacultyDashboardDTO(0, 0, 0, 0);
+            return new FacultyDashboardDTO(0, 0, 0, 0, 0);
         }
     }
 }

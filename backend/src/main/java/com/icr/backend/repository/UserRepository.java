@@ -2,6 +2,7 @@ package com.icr.backend.repository;
 
 import com.icr.backend.entity.User;
 import com.icr.backend.enums.RoleType;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -25,6 +26,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     long countByRole_Name(String roleName);
 
     long countByRole_Name(RoleType roleName);
+
+    Page<User> findByRole_Name(RoleType roleName, Pageable pageable);
 
     List<User> findAllByDeletedFalseOrderByCreatedAtDesc(Pageable pageable);
 }

@@ -5,15 +5,21 @@ import com.icr.backend.casestudy.dto.SubmissionEvaluationRequest;
 import com.icr.backend.casestudy.dto.SubmissionRequest;
 import com.icr.backend.casestudy.entity.SubmissionCoScore;
 import com.icr.backend.casestudy.service.CaseSubmissionService;
+import com.icr.backend.dto.response.ApiResponse;
+import com.icr.backend.dto.response.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping("/api/submissions")
@@ -87,9 +93,27 @@ public class CaseSubmissionController {
     @GetMapping("/my")
     @PreAuthorize("hasRole('STUDENT')")
     @Operation(summary = "Get my submissions")
-    public List<CaseSubmissionResponse> getMySubmissions() {
+    public ApiResponse<PageResponse<CaseSubmissionResponse>> getMySubmissions(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        Page<CaseSubmissionResponse> submissions = caseSubmissionService.getMySubmissions(
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "submittedAt"))
+        );
 
-        return caseSubmissionService.getMySubmissions();
+        return ApiResponse.<PageResponse<CaseSubmissionResponse>>builder()
+                .success(true)
+                .message("Submissions fetched successfully")
+                .data(PageResponse.<CaseSubmissionResponse>builder()
+                        .content(submissions.getContent())
+                        .page(submissions.getNumber())
+                        .size(submissions.getSize())
+                        .totalElements(submissions.getTotalElements())
+                        .totalPages(submissions.getTotalPages())
+                        .last(submissions.isLast())
+                        .build())
+                .timestamp(LocalDateTime.now())
+                .build();
     }
 
     @GetMapping("/{id}/co-scores")
