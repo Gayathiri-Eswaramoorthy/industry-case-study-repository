@@ -1,7 +1,9 @@
 import axiosInstance from "./axiosInstance";
 
-export const getUsers = async ({ page = 0, size = 5 }) => {
-  const response = await axiosInstance.get(`/users?page=${page}&size=${size}`);
+export const getUsers = async ({ page = 0, size = 5, role = null }) => {
+  const params = { page, size };
+  if (role) params.role = role;
+  const response = await axiosInstance.get("/users", { params });
   return response.data?.data;
 };
 

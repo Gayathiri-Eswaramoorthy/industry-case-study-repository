@@ -1,22 +1,17 @@
-import { useContext } from "react";
-import { ThemeContext } from "../context/ThemeContext";
+import { useTheme } from "../context/themeContext";
 
 function ThemeToggle() {
-  const { theme, toggleTheme } = useContext(ThemeContext);
-
-  const isDark = theme === "dark";
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <button
       type="button"
       onClick={toggleTheme}
-      className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-100 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+      className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
     >
-      <span>{isDark ? "☀️" : "🌙"}</span>
-      <span>{isDark ? "Light" : "Dark"}</span>
+      {theme === "dark" ? "\u2600\uFE0F Light" : "\uD83C\uDF19 Dark"}
     </button>
   );
 }
 
 export default ThemeToggle;
-

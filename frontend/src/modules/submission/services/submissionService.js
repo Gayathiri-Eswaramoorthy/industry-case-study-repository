@@ -29,9 +29,18 @@ const submissionService = {
     return response.data;
   },
 
-  async getMySubmissions() {
-    const response = await axiosInstance.get("/submissions/my");
-    return response.data;
+  async getMySubmissions({ page = 0, size = 10 } = {}) {
+    const response = await axiosInstance.get("/submissions/my", {
+      params: { page, size },
+    });
+    return response.data?.data ?? response.data ?? {
+      content: [],
+      page,
+      size,
+      totalElements: 0,
+      totalPages: 0,
+      last: true,
+    };
   },
 
   async getSubmissionsByCase(caseId) {

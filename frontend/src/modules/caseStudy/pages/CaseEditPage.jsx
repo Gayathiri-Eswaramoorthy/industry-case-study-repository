@@ -23,11 +23,6 @@ function parseKeyQuestions(value) {
   return [String(value)];
 }
 
-function normalizeKeyQuestions(questions) {
-  const cleaned = questions.map((question) => question.trim()).filter(Boolean);
-  return cleaned.length > 0 ? JSON.stringify(cleaned) : null;
-}
-
 function CaseEditPage() {
   const { role } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -50,14 +45,15 @@ function CaseEditPage() {
   const [referenceLinks, setReferenceLinks] = useState("");
   const [estimatedHours, setEstimatedHours] = useState("");
   const [courseId, setCourseId] = useState(null);
+  const [coIds, setCoIds] = useState([]);
+  const [courseOutcomes, setCourseOutcomes] = useState([]);
+  const [courseOutcomesLoading, setCourseOutcomesLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  if (role === "STUDENT") {
-    navigate("/dashboard");
-    return null;
-  }
+  const inputClass =
+    "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:disabled:bg-slate-800 dark:disabled:text-slate-500";
 
   useEffect(() => {
     const loadCase = async () => {
@@ -87,6 +83,7 @@ function CaseEditPage() {
           typeof data.estimatedHours === "number" ? String(data.estimatedHours) : ""
         );
         setCourseId(data.courseId ?? null);
+        setCoIds(Array.isArray(data.coIds) ? data.coIds : []);
       } catch (err) {
         console.error("Error loading case:", err);
         setError("Unable to load case. Please try again.");
@@ -97,6 +94,35 @@ function CaseEditPage() {
 
     loadCase();
   }, [caseId]);
+
+  useEffect(() => {
+    if (!courseId) {
+      setCourseOutcomes([]);
+      setCourseOutcomesLoading(false);
+      return;
+    }
+
+    const loadCourseOutcomes = async () => {
+      try {
+        setCourseOutcomesLoading(true);
+        const data = await caseService.getCourseOutcomes(courseId);
+        setCourseOutcomes(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Error loading course outcomes:", err);
+        setCourseOutcomes([]);
+      } finally {
+        setCourseOutcomesLoading(false);
+      }
+    };
+
+    loadCourseOutcomes();
+  }, [courseId]);
+
+  useEffect(() => {
+    if (role === "STUDENT") {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [role, navigate]);
 
   const updateQuestion = (index, value) => {
     setKeyQuestions((prev) => prev.map((item, idx) => (idx === index ? value : item)));
@@ -113,6 +139,12 @@ function CaseEditPage() {
       }
       return prev.filter((_, idx) => idx !== index);
     });
+  };
+
+  const toggleCoId = (coId) => {
+    setCoIds((prev) =>
+      prev.includes(coId) ? prev.filter((id) => id !== coId) : [...prev, coId]
+    );
   };
 
   const handleSubmit = async (e) => {
@@ -134,11 +166,12 @@ function CaseEditPage() {
           description,
           category,
           difficulty,
+          submissionType,
           dueDate: dueDate || null,
           maxMarks: maxMarks ? Number(maxMarks) : null,
           courseId,
-        },
-        role
+          coIds,
+        }
       );
 
       queryClient.invalidateQueries({ queryKey: ["cases"] });
@@ -177,307 +210,237 @@ function CaseEditPage() {
 
   const isPublished = caseStatus === "PUBLISHED";
 
+  if (role === "STUDENT") {
+    return null;
+  }
+
   return (
     <div className="space-y-6">
-      <div className="mb-2 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-800">
-            Edit Case Study
-          </h1>
-          <p className="text-sm text-slate-500">
-            Update details for this case study.
-          </p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100">Edit Case Study</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Update details for this case study.</p>
       </div>
 
       {loading && (
-        <div className="py-8 text-center text-sm text-slate-500">Loading case...</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+          Loading case...
+        </div>
       )}
 
       {!loading && error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-950/30 dark:text-red-300">
           {error}
         </div>
       )}
 
       {!loading && !error && (
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
-        >
+        <form onSubmit={handleSubmit} className="space-y-6">
           {isPublished && (
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-              This case is <strong>Published</strong>. Only Due Date, Max Marks,
-              Evaluation Rubric, Reference Links, and Estimated Hours can be edited.
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-200">
+              This case is <strong>Published</strong>. Only Due Date, Max Marks, Evaluation Rubric, Reference Links, and Estimated Hours can be edited.
             </div>
           )}
 
           {!isPublished && caseStatus === "DRAFT" && (
-            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-950/30 dark:text-emerald-200">
               This case is in <strong>Draft</strong>. All fields are editable.
             </div>
           )}
 
-          <div className="space-y-1">
-            <label htmlFor="title" className="text-sm font-medium text-slate-700">
-              Title
-            </label>
-            <input
-              id="title"
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-              required
-              disabled={isPublished}
-            />
-          </div>
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr),minmax(0,1fr)]">
+            <div className="space-y-6">
+              <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <h2 className="mb-4 text-base font-semibold text-slate-800 dark:text-slate-100">Main Details</h2>
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="title" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Title</label>
+                    <input id="title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} required disabled={isPublished} />
+                  </div>
 
-          <div className="space-y-1">
-            <label htmlFor="description" className="text-sm font-medium text-slate-700">
-              Description
-            </label>
-            <textarea
-              id="description"
-              rows={4}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-              required
-              disabled={isPublished}
-            />
-          </div>
+                  <div>
+                    <label htmlFor="description" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Description</label>
+                    <textarea id="description" rows={5} value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} required disabled={isPublished} />
+                  </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <label htmlFor="category" className="text-sm font-medium text-slate-700">
-                Category
-              </label>
-              <select
-                id="category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                disabled={isPublished}
-              >
-                <option value="PRODUCT">Product</option>
-                <option value="SUPPLY_CHAIN">Supply Chain</option>
-                <option value="FINTECH">Fintech</option>
-                <option value="HEALTHCARE">Healthcare</option>
-                <option value="AI_ML">AI/ML</option>
-              </select>
-            </div>
+                  <div>
+                    <label htmlFor="problemStatement" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Problem Statement</label>
+                    <textarea id="problemStatement" rows={4} value={problemStatement} onChange={(e) => setProblemStatement(e.target.value)} placeholder="Describe the specific business problem students must solve" className={inputClass} disabled={isPublished} />
+                  </div>
+                </div>
+              </section>
 
-            <div className="space-y-1">
-              <label htmlFor="submissionType" className="text-sm font-medium text-slate-700">
-                Submission Type
-              </label>
-              <select
-                id="submissionType"
-                value={submissionType}
-                onChange={(e) => setSubmissionType(e.target.value)}
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                disabled={isPublished}
-              >
-                <option value="TEXT">Text</option>
-                <option value="PDF">PDF</option>
-                <option value="GITHUB_LINK">GitHub Link</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label htmlFor="difficulty" className="text-sm font-medium text-slate-700">
-                Difficulty
-              </label>
-              <select
-                id="difficulty"
-                value={difficulty}
-                onChange={(e) => setDifficulty(e.target.value)}
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                disabled={isPublished}
-              >
-                <option value="EASY">Easy</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HARD">Hard</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label htmlFor="dueDate" className="text-sm font-medium text-slate-700">
-                Due Date
-              </label>
-              <input
-                id="dueDate"
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label htmlFor="maxMarks" className="text-sm font-medium text-slate-700">
-                Max Marks
-              </label>
-              <input
-                id="maxMarks"
-                type="number"
-                min="0"
-                value={maxMarks}
-                onChange={(e) => setMaxMarks(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-              />
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-            <div className="mb-4">
-              <h2 className="text-base font-semibold text-slate-800">Case Structure</h2>
-              <p className="text-sm text-slate-500">
-                Refine the guidance and structure students see with this case.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <label htmlFor="problemStatement" className="text-sm font-medium text-slate-700">
-                  Problem Statement
-                </label>
-                <textarea
-                  id="problemStatement"
-                  rows={4}
-                  value={problemStatement}
-                  onChange={(e) => setProblemStatement(e.target.value)}
-                  placeholder="Describe the specific business problem students must solve"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                  disabled={isPublished}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-slate-700">Key Questions</label>
+              <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">Case Structure</h2>
                   <button
                     type="button"
                     onClick={addQuestion}
                     disabled={isPublished || keyQuestions.length >= 5}
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     Add Question
                   </button>
                 </div>
 
-                {keyQuestions.map((question, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={question}
-                      onChange={(e) => updateQuestion(index, e.target.value)}
-                      placeholder={`Question ${index + 1}`}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                      disabled={isPublished}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeQuestion(index)}
-                      disabled={isPublished}
-                      className="inline-flex items-center rounded-md border border-slate-300 bg-white p-2 text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label={`Remove question ${index + 1}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                <div className="space-y-4">
+                  {keyQuestions.map((question, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={question}
+                        onChange={(e) => updateQuestion(index, e.target.value)}
+                        placeholder={`Question ${index + 1}`}
+                        className={inputClass}
+                        disabled={isPublished}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeQuestion(index)}
+                        disabled={isPublished}
+                        className="inline-flex items-center rounded-md border border-slate-300 bg-white p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                        aria-label={`Remove question ${index + 1}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+
+                  <div>
+                    <label htmlFor="constraints" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Constraints</label>
+                    <textarea id="constraints" rows={3} value={constraints} onChange={(e) => setConstraints(e.target.value)} placeholder="Budget limits, time constraints, market conditions..." className={inputClass} disabled={isPublished} />
                   </div>
-                ))}
-              </div>
 
-              <div className="space-y-1">
-                <label htmlFor="constraints" className="text-sm font-medium text-slate-700">
-                  Constraints
-                </label>
-                <textarea
-                  id="constraints"
-                  rows={3}
-                  value={constraints}
-                  onChange={(e) => setConstraints(e.target.value)}
-                  placeholder="Budget limits, time constraints, market conditions..."
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                  disabled={isPublished}
-                />
-              </div>
+                  <div>
+                    <label htmlFor="evaluationRubric" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Evaluation Rubric</label>
+                    <textarea id="evaluationRubric" rows={3} value={evaluationRubric} onChange={(e) => setEvaluationRubric(e.target.value)} placeholder="Analysis 40%, Proposed Solution 40%, Presentation 20%" className={inputClass} />
+                  </div>
 
-              <div className="space-y-1">
-                <label htmlFor="evaluationRubric" className="text-sm font-medium text-slate-700">
-                  Evaluation Rubric
-                </label>
-                <textarea
-                  id="evaluationRubric"
-                  rows={3}
-                  value={evaluationRubric}
-                  onChange={(e) => setEvaluationRubric(e.target.value)}
-                  placeholder="Analysis 40%, Proposed Solution 40%, Presentation 20%"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <label htmlFor="expectedOutcome" className="text-sm font-medium text-slate-700">
-                    Expected Outcome (Faculty Only)
-                  </label>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                    <Lock className="h-3 w-3" />
-                    Hidden from students
-                  </span>
+                  <div>
+                    <div className="mb-1 flex items-center gap-2">
+                      <label htmlFor="expectedOutcome" className="text-sm font-medium text-slate-700 dark:text-slate-200">Expected Outcome (Faculty Only)</label>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                        <Lock className="h-3 w-3" />
+                        Hidden from students
+                      </span>
+                    </div>
+                    <textarea id="expectedOutcome" rows={3} value={expectedOutcome} onChange={(e) => setExpectedOutcome(e.target.value)} placeholder="What a strong answer should cover..." className={inputClass} disabled={isPublished} />
+                  </div>
                 </div>
-                <textarea
-                  id="expectedOutcome"
-                  rows={3}
-                  value={expectedOutcome}
-                  onChange={(e) => setExpectedOutcome(e.target.value)}
-                  placeholder="What a strong answer should cover..."
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                  disabled={isPublished}
-                />
-              </div>
+              </section>
+            </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <label htmlFor="referenceLinks" className="text-sm font-medium text-slate-700">
-                    Reference Links
-                  </label>
-                  <input
-                    id="referenceLinks"
-                    type="text"
-                    value={referenceLinks}
-                    onChange={(e) => setReferenceLinks(e.target.value)}
-                    placeholder="https://... (comma-separated)"
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                  />
+            <div className="space-y-6">
+              <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <h2 className="mb-4 text-base font-semibold text-slate-800 dark:text-slate-100">Settings</h2>
+                <div className="grid gap-4">
+                  <div>
+                    <label htmlFor="category" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Category</label>
+                    <select id="category" value={category} onChange={(e) => setCategory(e.target.value)} className={inputClass} disabled={isPublished}>
+                      <option value="PRODUCT">Product</option>
+                      <option value="SUPPLY_CHAIN">Supply Chain</option>
+                      <option value="FINTECH">Fintech</option>
+                      <option value="HEALTHCARE">Healthcare</option>
+                      <option value="AI_ML">AI/ML</option>
+                      <option value="FINANCE">Finance</option>
+                      <option value="OPERATIONS">Operations</option>
+                      <option value="MARKETING">Marketing</option>
+                      <option value="TECHNOLOGY">Technology</option>
+                      <option value="STRATEGY">Strategy</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="submissionType" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Submission Type</label>
+                    <select id="submissionType" value={submissionType} onChange={(e) => setSubmissionType(e.target.value)} className={inputClass} disabled={isPublished}>
+                      <option value="TEXT">Text</option>
+                      <option value="PDF">PDF</option>
+                      <option value="GITHUB_LINK">GitHub Link</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="difficulty" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Difficulty</label>
+                    <select id="difficulty" value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className={inputClass} disabled={isPublished}>
+                      <option value="EASY">Easy</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HARD">Hard</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="dueDate" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Due Date</label>
+                    <input id="dueDate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={inputClass} />
+                  </div>
+
+                  <div>
+                    <label htmlFor="maxMarks" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Max Marks</label>
+                    <input id="maxMarks" type="number" min="0" value={maxMarks} onChange={(e) => setMaxMarks(e.target.value)} className={inputClass} />
+                  </div>
+
+                  <div>
+                    <label htmlFor="referenceLinks" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Reference Links</label>
+                    <input id="referenceLinks" type="text" value={referenceLinks} onChange={(e) => setReferenceLinks(e.target.value)} placeholder="https://... (comma-separated)" className={inputClass} />
+                  </div>
+
+                  <div>
+                    <label htmlFor="estimatedHours" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Estimated Hours</label>
+                    <input id="estimatedHours" type="number" min="0" value={estimatedHours} onChange={(e) => setEstimatedHours(e.target.value)} className={inputClass} />
+                  </div>
+                </div>
+              </section>
+
+              <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div className="mb-3">
+                  <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">Course Outcomes</h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Select COs this case study is mapped to.</p>
                 </div>
 
-                <div className="space-y-1">
-                  <label htmlFor="estimatedHours" className="text-sm font-medium text-slate-700">
-                    Estimated Hours
-                  </label>
-                  <input
-                    id="estimatedHours"
-                    type="number"
-                    min="0"
-                    value={estimatedHours}
-                    onChange={(e) => setEstimatedHours(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                  />
-                </div>
-              </div>
+                {courseOutcomesLoading ? (
+                  <div className="space-y-2">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <div key={index} className="h-12 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                    ))}
+                  </div>
+                ) : courseOutcomes.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                    No course outcomes available for this course.
+                  </div>
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {courseOutcomes.map((co) => (
+                      <label
+                        key={co.id}
+                        className={`flex items-start gap-3 rounded-lg border border-slate-200 px-3 py-3 transition dark:border-slate-700 ${
+                          isPublished
+                            ? "cursor-not-allowed bg-slate-50 opacity-70 dark:bg-slate-800"
+                            : "cursor-pointer hover:border-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={coIds.includes(co.id)}
+                          onChange={() => toggleCoId(co.id)}
+                          disabled={isPublished}
+                          className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 disabled:cursor-not-allowed dark:border-slate-600"
+                        />
+                        <div className="text-sm">
+                          <div className="font-medium text-slate-800 dark:text-slate-100">{co.code}</div>
+                          <div className="text-slate-500 dark:text-slate-400">{co.description}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </section>
             </div>
           </div>
 
-          <div className="flex justify-end gap-2">
+          <div className="sticky bottom-4 flex justify-end gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <button
               type="button"
               onClick={handleCancel}
-              className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
+              className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Cancel
             </button>
@@ -486,7 +449,7 @@ function CaseEditPage() {
                 type="button"
                 onClick={handlePublish}
                 disabled={saving}
-                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {saving ? "Publishing..." : "Publish Case"}
               </button>
@@ -494,9 +457,9 @@ function CaseEditPage() {
             <button
               type="submit"
               disabled={saving}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
             >
-              {saving ? "Saving..." : "Save changes"}
+              {saving ? "Saving..." : "Save Changes"}
             </button>
           </div>
         </form>

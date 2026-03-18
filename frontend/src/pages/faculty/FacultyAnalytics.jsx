@@ -25,22 +25,6 @@ export default function FacultyAnalytics() {
     queryFn: getFacultyAnalytics,
   });
 
-  if (isLoading) {
-    return (
-      <div className="text-sm text-slate-600 dark:text-slate-300">
-        Loading analytics...
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
-        Unable to load faculty analytics.
-      </div>
-    );
-  }
-
   const safeData = {
     totalSubmissions: data?.totalSubmissions ?? 0,
     evaluatedSubmissions: data?.evaluatedSubmissions ?? 0,
@@ -59,74 +43,122 @@ export default function FacultyAnalytics() {
   const pieColors = ["#10b981", "#f59e0b"];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100">
           Faculty Analytics
         </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Submission and evaluation insights across your cases.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          title="Total Submissions"
-          value={safeData.totalSubmissions}
-          icon={<ClipboardList className="h-5 w-5" />}
-        />
-        <KpiCard
-          title="Evaluated Submissions"
-          value={safeData.evaluatedSubmissions}
-          icon={<CheckCircle2 className="h-5 w-5" />}
-        />
-        <KpiCard
-          title="Pending Submissions"
-          value={safeData.pendingSubmissions}
-          icon={<Clock3 className="h-5 w-5" />}
-        />
-        <KpiCard
-          title="Evaluation Completion Rate"
-          value={`${safeData.evaluationCompletionRate.toFixed(1)}%`}
-          icon={<Percent className="h-5 w-5" />}
-        />
+      {isError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-950/30 dark:text-red-300">
+          Unable to load faculty analytics.
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, index) => (
+            <KpiCard
+              key={index}
+              title={
+                index === 0
+                  ? "Total Submissions"
+                  : index === 1
+                  ? "Evaluated"
+                  : index === 2
+                  ? "Pending"
+                  : "Completion Rate"
+              }
+              icon={
+                index === 0 ? (
+                  <ClipboardList className="h-5 w-5" />
+                ) : index === 1 ? (
+                  <CheckCircle2 className="h-5 w-5" />
+                ) : index === 2 ? (
+                  <Clock3 className="h-5 w-5" />
+                ) : (
+                  <Percent className="h-5 w-5" />
+                )
+              }
+              loading
+            />
+          ))
+        ) : (
+          <>
+            <KpiCard
+              title="Total Submissions"
+              value={safeData.totalSubmissions}
+              icon={<ClipboardList className="h-5 w-5" />}
+              description="Across all your cases"
+            />
+            <KpiCard
+              title="Evaluated"
+              value={safeData.evaluatedSubmissions}
+              icon={<CheckCircle2 className="h-5 w-5" />}
+              description="Marked complete"
+            />
+            <KpiCard
+              title="Pending"
+              value={safeData.pendingSubmissions}
+              icon={<Clock3 className="h-5 w-5" />}
+              description="Awaiting your review"
+            />
+            <KpiCard
+              title="Completion Rate"
+              value={`${safeData.evaluationCompletionRate.toFixed(1)}%`}
+              icon={<Percent className="h-5 w-5" />}
+              description="Evaluation progress"
+            />
+          </>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <h2 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
-            Submissions per Case Chart
+            Submissions per Case
           </h2>
+          <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">Case-level submission volume.</p>
           <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={safeData.submissionsPerCase}>
-                <XAxis dataKey="caseTitle" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#3b82f6" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {isLoading ? (
+              <div className="h-full animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={safeData.submissionsPerCase}>
+                  <XAxis dataKey="caseTitle" stroke="#64748b" />
+                  <YAxis allowDecimals={false} stroke="#64748b" />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#0f172a" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <h2 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
-            Evaluation Completion Rate
+            Evaluation Completion
           </h2>
+          <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">Evaluated vs pending distribution.</p>
           <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie data={statusPieData} dataKey="value" outerRadius={100} label>
-                  {statusPieData.map((entry, index) => (
-                    <Cell
-                      key={entry.name}
-                      fill={pieColors[index % pieColors.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            {isLoading ? (
+              <div className="h-full animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie data={statusPieData} dataKey="value" outerRadius={100} label>
+                    {statusPieData.map((entry, index) => (
+                      <Cell key={entry.name} fill={pieColors[index % pieColors.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>

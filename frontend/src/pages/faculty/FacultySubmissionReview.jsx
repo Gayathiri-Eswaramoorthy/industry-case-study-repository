@@ -12,9 +12,9 @@ function SubmissionSection({ title, value }) {
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-      <h3 className="mb-2 text-sm font-semibold text-slate-800">{title}</h3>
-      <p className="whitespace-pre-wrap text-sm text-slate-700">{value}</p>
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950">
+      <h3 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">{title}</h3>
+      <p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">{value}</p>
     </div>
   );
 }
@@ -64,16 +64,20 @@ function FacultySubmissionReview() {
 
   useEffect(() => {
     if (!coIds.length) {
-      setCoRows([]);
-      return;
+      const timeoutId = setTimeout(() => setCoRows([]), 0);
+      return () => clearTimeout(timeoutId);
     }
 
-    setCoRows((prev) =>
-      coIds.map((coId) => {
-        const existing = prev.find((row) => row.coId === coId);
-        return existing || { coId, score: "", maxScore: "" };
-      })
-    );
+    const timeoutId = setTimeout(() => {
+      setCoRows((prev) =>
+        coIds.map((coId) => {
+          const existing = prev.find((row) => row.coId === coId);
+          return existing || { coId, score: "", maxScore: "" };
+        })
+      );
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
   }, [coIds]);
 
   const mappedOutcomes = useMemo(
@@ -179,12 +183,12 @@ function FacultySubmissionReview() {
   if (isError || !submission) {
     return (
       <div className="space-y-4">
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-950/30 dark:text-red-300">
           Unable to load submission details.
         </div>
         <Link
           to="/faculty/submissions"
-          className="inline-flex items-center rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          className="inline-flex items-center rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
         >
           Back to Queue
         </Link>
@@ -194,196 +198,191 @@ function FacultySubmissionReview() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-            Review Submission
-          </h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            {submission.studentName} - {submission.caseTitle}
-          </p>
-        </div>
-        <StatusBadge status={submission.status} />
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100">Review Submission</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {submission.studentName} | {submission.caseTitle}
+        </p>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr),320px]">
-        <div className="space-y-6">
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">
-              Submitted Solution
-            </h2>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr),minmax(0,1fr)]">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Submission Details</h2>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Submitted content and student inputs.</p>
+            </div>
+            <StatusBadge status={submission.status} />
+          </div>
 
-            <div className="space-y-3">
-              <SubmissionSection title="Executive Summary" value={submission.executiveSummary} />
-              <SubmissionSection title="Situation Analysis" value={submission.situationAnalysis} />
-              <SubmissionSection title="Root Cause Analysis" value={submission.rootCauseAnalysis} />
-              <SubmissionSection title="Proposed Solution" value={submission.proposedSolution} />
-              <SubmissionSection title="Implementation Plan" value={submission.implementationPlan} />
-              <SubmissionSection title="Risks & Constraints" value={submission.risksAndConstraints} />
-              <SubmissionSection title="Conclusion" value={submission.conclusion} />
-
-              {submission.githubLink && (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <h3 className="mb-2 text-sm font-semibold text-slate-800">
-                    GitHub Repository
-                  </h3>
-                  <a
-                    href={submission.githubLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-sm text-blue-600 underline underline-offset-2"
-                  >
-                    {submission.githubLink}
-                  </a>
-                </div>
-              )}
-
-              {submission.selfRating != null && (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <h3 className="mb-2 text-sm font-semibold text-slate-800">Student Self-Rating</h3>
-                  <span className="inline-flex items-center rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">
-                    {submission.selfRating} / 10
-                  </span>
-                </div>
-              )}
-
-              {!hasStructuredContent && (
-                <p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">
-                  {submission.solutionText || "No submission text available."}
-                </p>
-              )}
+          <div className="mb-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Student</p>
+              <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">{submission.studentName}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Case</p>
+              <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">{submission.caseTitle}</p>
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">
-              Evaluation
-            </h2>
+          <div className="space-y-3">
+            <SubmissionSection title="Executive Summary" value={submission.executiveSummary} />
+            <SubmissionSection title="Situation Analysis" value={submission.situationAnalysis} />
+            <SubmissionSection title="Root Cause Analysis" value={submission.rootCauseAnalysis} />
+            <SubmissionSection title="Proposed Solution" value={submission.proposedSolution} />
+            <SubmissionSection title="Implementation Plan" value={submission.implementationPlan} />
+            <SubmissionSection title="Risks & Constraints" value={submission.risksAndConstraints} />
+            <SubmissionSection title="Conclusion" value={submission.conclusion} />
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-          {formError && (
-            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
-              {formError}
-            </div>
-          )}
-
-          {hasCoMappings ? (
-            <div className="space-y-3">
-              {mappedOutcomes.map((row, index) => (
-                <div
-                  key={row.coId}
-                  className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-[minmax(0,1fr),120px,120px]"
+            {submission.githubLink && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950">
+                <h3 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">GitHub Repository</h3>
+                <a
+                  href={submission.githubLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm text-slate-700 underline underline-offset-2 dark:text-slate-300"
                 >
-                  <div>
-                    <div className="text-sm font-semibold text-slate-800">
-                      {row.outcome?.code || `CO${index + 1}`}
-                    </div>
-                    <div className="text-sm text-slate-600">
-                      {row.outcome?.description || `Course outcome ${row.coId}`}
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-slate-700">Score</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={row.score}
-                      onChange={(e) => updateCoRow(row.coId, "score", e.target.value)}
-                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-slate-700">Max Score</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={row.maxScore}
-                      onChange={(e) => updateCoRow(row.coId, "maxScore", e.target.value)}
-                      className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                      required
-                    />
-                  </div>
-                </div>
-              ))}
-
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800">
-                Total: {totalScore}
+                  {submission.githubLink}
+                </a>
               </div>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              <div className="flex items-center justify-between gap-3">
-                <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                  {`Score (out of ${maxMarks})`}
-                </label>
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  {`${rawScore} / ${maxMarks} (${livePercentage}%)`}
+            )}
+
+            {submission.selfRating != null && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950">
+                <h3 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">Student Self-Rating</h3>
+                <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700 dark:border-violet-500/30 dark:bg-violet-950/40 dark:text-violet-200">
+                  {submission.selfRating} / 10
                 </span>
               </div>
-              <input
-                type="number"
-                min="0"
-                max={maxMarks}
-                value={score}
-                onChange={(e) => setScore(e.target.value)}
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                required
-              />
-            </div>
-          )}
+            )}
 
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
-              Feedback
-            </label>
-            <textarea
-              rows={4}
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-              placeholder="Add feedback for the student..."
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="submit"
-              disabled={evaluateMutation.isPending}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
-            >
-              {evaluateMutation.isPending ? "Saving..." : "Mark Evaluated"}
-            </button>
-            <Link
-              to="/faculty/submissions"
-              className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Cancel
-            </Link>
-          </div>
-            </form>
+            {!hasStructuredContent && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950">
+                <h3 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">Solution Text</h3>
+                <p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">
+                  {submission.solutionText || "No submission text available."}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
-        <aside className="xl:sticky xl:top-4 xl:self-start">
+        <div className="space-y-6">
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">
-              Evaluation Rubric
-            </h2>
+            <h2 className="mb-3 text-base font-semibold text-slate-800 dark:text-slate-100">Evaluation Form</h2>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {formError && (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/30 dark:bg-red-950/30 dark:text-red-300">
+                  {formError}
+                </div>
+              )}
+
+              {hasCoMappings ? (
+                <div className="space-y-3">
+                  {mappedOutcomes.map((row, index) => (
+                    <div
+                      key={row.coId}
+                      className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-[minmax(0,1fr),110px,110px] dark:border-slate-700 dark:bg-slate-950"
+                    >
+                      <div>
+                        <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">{row.outcome?.code || `CO${index + 1}`}</div>
+                        <div className="text-xs text-slate-600 dark:text-slate-300">{row.outcome?.description || `Course outcome ${row.coId}`}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Score</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={row.score}
+                          onChange={(e) => updateCoRow(row.coId, "score", e.target.value)}
+                          className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-900 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Max</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={row.maxScore}
+                          onChange={(e) => updateCoRow(row.coId, "maxScore", e.target.value)}
+                          className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-900 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                          required
+                        />
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
+                    Total: {totalScore}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      {`Score (out of ${maxMarks})`}
+                    </label>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      {`${rawScore} / ${maxMarks} (${livePercentage}%)`}
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    max={maxMarks}
+                    value={score}
+                    onChange={(e) => setScore(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                    required
+                  />
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Feedback</label>
+                <textarea
+                  rows={5}
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                  placeholder="Add feedback for the student..."
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={evaluateMutation.isPending}
+                  className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {evaluateMutation.isPending ? "Saving..." : "Mark Evaluated"}
+                </button>
+                <Link
+                  to="/faculty/submissions"
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  Cancel
+                </Link>
+              </div>
+            </form>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">Evaluation Rubric</h2>
             <p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">
               {caseData?.evaluationRubric || "No rubric provided for this case."}
             </p>
 
             <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950">
-              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Max Marks
-              </div>
-              <div className="mt-1 text-lg font-semibold text-slate-800 dark:text-slate-100">
-                {maxMarks}
-              </div>
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Max Marks</div>
+              <div className="mt-1 text-lg font-semibold text-slate-800 dark:text-slate-100">{maxMarks}</div>
             </div>
           </div>
-        </aside>
+        </div>
       </div>
     </div>
   );

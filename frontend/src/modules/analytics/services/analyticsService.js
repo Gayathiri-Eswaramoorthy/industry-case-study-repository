@@ -33,6 +33,16 @@ const analyticsService = {
     const response = await axiosInstance.get("/admin/analytics/submissions");
     return response.data;
   },
+
+  async getCoAttainmentSummary() {
+    const response = await axiosInstance.get("/admin/analytics/co-attainment-summary");
+    return response.data;
+  },
+
+  async getTopCases() {
+    const response = await axiosInstance.get("/admin/analytics/top-cases");
+    return response.data;
+  },
 };
 
 export default analyticsService;
