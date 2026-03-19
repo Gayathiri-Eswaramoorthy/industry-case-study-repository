@@ -1,15 +1,13 @@
 package com.icr.backend.casestudy.dto;
 
 import com.icr.backend.casestudy.enums.SubmissionStatus;
-import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
 public class FacultySubmissionDTO {
 
     private Long submissionId;
@@ -17,6 +15,7 @@ public class FacultySubmissionDTO {
     private Long courseId;
     private String studentName;
     private String caseTitle;
+    private String createdByName;
     private String solutionText;
     private String executiveSummary;
     private String situationAnalysis;
@@ -25,6 +24,7 @@ public class FacultySubmissionDTO {
     private String implementationPlan;
     private String risksAndConstraints;
     private String conclusion;
+    private String reevalReason;
     private String githubLink;
     private String pdfFileName;
     private String pdfFilePath;
@@ -33,7 +33,9 @@ public class FacultySubmissionDTO {
     private String facultyFeedback;
     private LocalDateTime submittedAt;
     private SubmissionStatus status;
+    private boolean canEvaluate;
 
+    // Keep ONLY this constructor — used by the original findFacultySubmissions JPQL
     public FacultySubmissionDTO(
             Long submissionId,
             String studentName,

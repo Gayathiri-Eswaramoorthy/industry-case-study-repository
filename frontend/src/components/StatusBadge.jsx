@@ -20,6 +20,9 @@ function StatusBadge({ status }) {
   } else if (normalized === "EVALUATED") {
     colorClasses =
       "bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30";
+  } else if (normalized === "REEVAL_REQUESTED") {
+    colorClasses =
+      "bg-indigo-100 text-indigo-800 border border-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-300 dark:border-indigo-500/30";
   } else if (normalized === "GRADED") {
     colorClasses =
       "bg-violet-100 text-violet-800 border border-violet-200 dark:bg-violet-500/20 dark:text-violet-300 dark:border-violet-500/30";

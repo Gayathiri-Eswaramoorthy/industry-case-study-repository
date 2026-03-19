@@ -13,6 +13,7 @@ import Layout from "./components/layout/Layout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ProgramOutcomesPage from "./pages/admin/ProgramOutcomesPage";
 import CourseOutcomesPage from "./pages/admin/CourseOutcomesPage";
+import ReevalQueuePage from "./pages/admin/ReevalQueuePage";
 import FacultyDashboard from "./pages/faculty/FacultyDashboard";
 import FacultyAnalytics from "./pages/faculty/FacultyAnalytics";
 import FacultyCourseOutcomesPage from "./pages/faculty/FacultyCourseOutcomesPage";
@@ -59,6 +60,7 @@ function App() {
           <Route path="admin/dashboard" element={<AdminDashboard />} />
           <Route path="admin/program-outcomes" element={<ProgramOutcomesPage />} />
           <Route path="admin/course-outcomes" element={<CourseOutcomesPage />} />
+          <Route path="admin/reeval-queue" element={<ReevalQueuePage />} />
           <Route path="faculty/dashboard" element={<FacultyDashboard />} />
           <Route path="faculty/analytics" element={<FacultyAnalytics />} />
           <Route path="faculty/course-outcomes" element={<FacultyCourseOutcomesPage />} />

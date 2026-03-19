@@ -1,7 +1,6 @@
 package com.icr.backend.service.impl;
 
 import com.icr.backend.casestudy.enums.SubmissionStatus;
-import com.icr.backend.casestudy.entity.CaseStudy;
 import com.icr.backend.casestudy.repository.CaseSubmissionRepository;
 import com.icr.backend.casestudy.repository.CaseStudyRepository;
 import com.icr.backend.dto.FacultyDashboardDTO;
@@ -14,9 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -43,12 +39,6 @@ public class FacultyDashboardServiceImpl implements FacultyDashboardService {
                     .orElseThrow(() -> new RuntimeException("Faculty not found"));
 
             Long facultyId = faculty.getId();
-            List<Long> facultyCaseIds = caseStudyRepository
-                    .findByCreatedBy_Id(facultyId)
-                    .stream()
-                    .map(CaseStudy::getId)
-                    .toList();
-
             long ownCases = caseStudyRepository.countByCreatedBy_Id(facultyId);
             long publishedCases = caseStudyRepository.countByStatus(CaseStatus.PUBLISHED);
             long totalVisibleCases = caseStudyRepository.countByStatusOrCreatedBy_IdAndStatus(
@@ -56,12 +46,8 @@ public class FacultyDashboardServiceImpl implements FacultyDashboardService {
                     facultyId,
                     CaseStatus.DRAFT
             );
-            long pendingReviews = facultyCaseIds.isEmpty()
-                    ? 0
-                    : submissionRepository.countByCaseIdInAndStatus(facultyCaseIds, SubmissionStatus.SUBMITTED);
-            long evaluatedSubmissions = facultyCaseIds.isEmpty()
-                    ? 0
-                    : submissionRepository.countByCaseIdInAndStatus(facultyCaseIds, SubmissionStatus.EVALUATED);
+            long pendingReviews = submissionRepository.countByStatus(SubmissionStatus.SUBMITTED);
+            long evaluatedSubmissions = submissionRepository.countByStatus(SubmissionStatus.EVALUATED);
 
             return new FacultyDashboardDTO(
                     totalVisibleCases,

@@ -5,11 +5,6 @@ import { Lock, Plus, Trash2 } from "lucide-react";
 import caseService from "../services/caseService";
 import { AuthContext } from "../../../context/AuthContext";
 
-function normalizeQuestionList(questions) {
-  const cleaned = questions.map((question) => question.trim()).filter(Boolean);
-  return cleaned.length > 0 ? JSON.stringify(cleaned) : null;
-}
-
 function CaseCreatePage() {
   const { role } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -121,7 +116,14 @@ function CaseCreatePage() {
     e.preventDefault();
     setError(null);
 
-    if (!title || !description || !difficulty || !courseId || !category || !submissionType) {
+    if (
+      !title.trim() ||
+      !description.trim() ||
+      !difficulty ||
+      !courseId ||
+      !category ||
+      !submissionType
+    ) {
       setError("Please fill in all required fields.");
       return;
     }
@@ -136,34 +138,52 @@ function CaseCreatePage() {
       }
     }
 
+    let parsedDueDate = null;
+    if (dueDate) {
+      const d = new Date(`${dueDate}T23:59:59`);
+      if (d > new Date()) {
+        parsedDueDate = `${dueDate}T23:59:59`;
+      } else {
+        setError("Due date must be in the future.");
+        return;
+      }
+    }
+
+    const parsedMaxMarks = maxMarks && Number(maxMarks) >= 1 ? Number(maxMarks) : null;
+    const cleanedQuestions = keyQuestions.map((q) => q.trim()).filter(Boolean);
+    const parsedKeyQuestions =
+      cleanedQuestions.length > 0 ? JSON.stringify(cleanedQuestions) : null;
+
     setLoading(true);
 
     try {
       await caseService.createCase({
-        title,
-        description,
+        title: title.trim(),
+        description: description.trim(),
         difficulty,
-        dueDate: dueDate ? `${dueDate}T23:59:59` : null,
-        maxMarks: maxMarks ? Number(maxMarks) : null,
+        dueDate: parsedDueDate,
+        maxMarks: parsedMaxMarks,
         category,
         submissionType,
         caseMaterial,
         courseId: Number(courseId),
         problemStatement: problemStatement.trim() || null,
-        keyQuestions: normalizeQuestionList(keyQuestions),
+        keyQuestions: parsedKeyQuestions,
         constraints: constraints.trim() || null,
         evaluationRubric: evaluationRubric.trim() || null,
         expectedOutcome: expectedOutcome.trim() || null,
         referenceLinks: referenceLinks.trim() || null,
-        estimatedHours: estimatedHours ? Number(estimatedHours) : null,
-        coIds,
+        estimatedHours:
+          estimatedHours && Number(estimatedHours) > 0 ? Number(estimatedHours) : null,
+        coIds: coIds.length > 0 ? coIds : [],
       });
 
       toast.success("Case created successfully.");
       navigate("/cases");
     } catch (err) {
       console.error("Error creating case:", err);
-      setError("Unable to create case. Please try again.");
+      const msg = err?.response?.data?.message || err?.response?.data?.error || null;
+      setError(msg || "Unable to create case. Please try again.");
     } finally {
       setLoading(false);
     }

@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { AuthContext } from "../../context/AuthContext";
 import { getStudentPoAttainment } from "../../services/studentAttainmentService";
+import { getUserFromToken } from "../../utils/tokenUtils";
 
 const STATUS_STYLES = {
   ATTAINED: {
@@ -32,7 +33,8 @@ const STATUS_STYLES = {
 
 function PoAttainment() {
   const { user } = useContext(AuthContext);
-  const studentId = user?.id;
+  const tokenUser = getUserFromToken();
+  const studentId = user?.id ?? tokenUser?.id ?? null;
 
   const {
     data: rows = [],

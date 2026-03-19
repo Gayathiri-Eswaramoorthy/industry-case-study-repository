@@ -1,20 +1,31 @@
 package com.icr.backend.casestudy.controller;
 
 import com.icr.backend.casestudy.dto.CaseSubmissionResponse;
+import com.icr.backend.casestudy.dto.ReEvaluationRequest;
 import com.icr.backend.casestudy.dto.SubmissionEvaluationRequest;
 import com.icr.backend.casestudy.dto.SubmissionRequest;
+import com.icr.backend.casestudy.entity.CaseSubmission;
 import com.icr.backend.casestudy.entity.SubmissionCoScore;
+import com.icr.backend.casestudy.enums.SubmissionStatus;
+import com.icr.backend.casestudy.repository.CaseSubmissionRepository;
 import com.icr.backend.casestudy.service.CaseSubmissionService;
 import com.icr.backend.dto.response.ApiResponse;
 import com.icr.backend.dto.response.PageResponse;
+import com.icr.backend.entity.User;
+import com.icr.backend.exception.ResourceNotFoundException;
+import com.icr.backend.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -28,6 +39,8 @@ import java.time.LocalDateTime;
 public class CaseSubmissionController {
 
     private final CaseSubmissionService caseSubmissionService;
+    private final CaseSubmissionRepository caseSubmissionRepository;
+    private final UserRepository userRepository;
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('STUDENT')")
@@ -55,7 +68,7 @@ public class CaseSubmissionController {
     }
 
     @PatchMapping("/{id}/evaluate")
-    @PreAuthorize("hasRole('FACULTY')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN')")
     @Operation(summary = "Faculty evaluates submission")
     public CaseSubmissionResponse evaluateSubmission(
             @PathVariable Long id,
@@ -72,7 +85,7 @@ public class CaseSubmissionController {
     }
 
     @PutMapping("/{id}/evaluate")
-    @PreAuthorize("hasRole('FACULTY')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN')")
     @Operation(summary = "Faculty evaluates submission with request body")
     public CaseSubmissionResponse evaluateSubmissionWithBody(
             @PathVariable Long id,
@@ -121,5 +134,58 @@ public class CaseSubmissionController {
     @Operation(summary = "Get course outcome score breakdown for a submission")
     public List<SubmissionCoScore> getCoScores(@PathVariable Long id) {
         return caseSubmissionService.getCoScores(id);
+    }
+
+    @PostMapping("/{id}/request-reeval")
+    @PreAuthorize("hasRole('STUDENT')")
+    @Transactional
+    @Operation(summary = "Student requests re-evaluation")
+    public CaseSubmissionResponse requestReevaluation(
+            @PathVariable Long id,
+            @Valid @RequestBody ReEvaluationRequest request
+    ) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new RuntimeException("User not authenticated");
+        }
+
+        User student = userRepository.findByEmail(auth.getName())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        CaseSubmission submission = caseSubmissionRepository.findById(id)
+                .filter(item -> item.getStudentId().equals(student.getId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Submission not found"));
+
+        if (submission.getStatus() != SubmissionStatus.EVALUATED) {
+            throw new IllegalStateException("Can only request re-evaluation after evaluation");
+        }
+
+        submission.setStatus(SubmissionStatus.REEVAL_REQUESTED);
+        submission.setReevalReason(request.getReason());
+
+        CaseSubmission saved = caseSubmissionRepository.save(submission);
+
+        return CaseSubmissionResponse.builder()
+                .id(saved.getId())
+                .caseId(saved.getCaseId())
+                .studentId(saved.getStudentId())
+                .solutionText(saved.getSolutionText())
+                .executiveSummary(saved.getExecutiveSummary())
+                .situationAnalysis(saved.getSituationAnalysis())
+                .rootCauseAnalysis(saved.getRootCauseAnalysis())
+                .proposedSolution(saved.getProposedSolution())
+                .implementationPlan(saved.getImplementationPlan())
+                .risksAndConstraints(saved.getRisksAndConstraints())
+                .conclusion(saved.getConclusion())
+                .githubLink(saved.getGithubLink())
+                .pdfFileName(saved.getPdfFileName())
+                .pdfFilePath(saved.getPdfFilePath())
+                .selfRating(saved.getSelfRating())
+                .marksAwarded(saved.getMarksAwarded())
+                .facultyFeedback(saved.getFacultyFeedback())
+                .status(saved.getStatus())
+                .submittedAt(saved.getSubmittedAt())
+                .evaluatedAt(saved.getEvaluatedAt())
+                .build();
     }
 }

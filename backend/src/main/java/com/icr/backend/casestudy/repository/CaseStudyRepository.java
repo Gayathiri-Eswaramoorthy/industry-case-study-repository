@@ -10,6 +10,8 @@ import com.icr.backend.enums.CaseStatus;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 public interface CaseStudyRepository extends JpaRepository<CaseStudy, Long> {
 
@@ -86,6 +88,22 @@ public interface CaseStudyRepository extends JpaRepository<CaseStudy, Long> {
     );
 
     List<CaseStudy> findByCreatedBy_Id(Long createdById);
+
+    @Query("""
+            SELECT c FROM CaseStudy c
+            LEFT JOIN FETCH c.createdBy
+            LEFT JOIN FETCH c.course
+            WHERE c.id IN :ids
+            """)
+    List<CaseStudy> findAllByIdWithDetails(@Param("ids") Set<Long> ids);
+
+    @Query("""
+            SELECT c FROM CaseStudy c
+            LEFT JOIN FETCH c.createdBy
+            LEFT JOIN FETCH c.course
+            WHERE c.id = :id
+            """)
+    Optional<CaseStudy> findByIdWithDetails(@Param("id") Long id);
 
     List<CaseStudy> findAllByOrderByCreatedAtDesc(Pageable pageable);
 

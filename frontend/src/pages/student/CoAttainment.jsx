@@ -12,6 +12,7 @@ import {
 import { BarChart3, Target } from "lucide-react";
 import { AuthContext } from "../../context/AuthContext";
 import { getStudentCoAttainment } from "../../services/studentAttainmentService";
+import { getUserFromToken } from "../../utils/tokenUtils";
 
 const STATUS_STYLES = {
   ATTAINED: {
@@ -34,7 +35,8 @@ const STATUS_STYLES = {
 function CoAttainment() {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
-  const studentId = user?.id;
+  const tokenUser = getUserFromToken();
+  const studentId = user?.id ?? tokenUser?.id ?? null;
 
   const {
     data: attainmentRows = [],

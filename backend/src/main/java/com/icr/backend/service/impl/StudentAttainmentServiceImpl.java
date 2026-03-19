@@ -1,10 +1,14 @@
 package com.icr.backend.service.impl;
 
 import com.icr.backend.casestudy.entity.CaseCoMapping;
+import com.icr.backend.casestudy.entity.CaseStudy;
 import com.icr.backend.casestudy.entity.CaseSubmission;
+import com.icr.backend.casestudy.entity.SubmissionCoScore;
 import com.icr.backend.casestudy.enums.SubmissionStatus;
 import com.icr.backend.casestudy.repository.CaseCoMappingRepository;
+import com.icr.backend.casestudy.repository.CaseStudyRepository;
 import com.icr.backend.casestudy.repository.CaseSubmissionRepository;
+import com.icr.backend.casestudy.repository.SubmissionCoScoreRepository;
 import com.icr.backend.dto.StudentCoAttainmentDTO;
 import com.icr.backend.dto.StudentPoAttainmentDTO;
 import com.icr.backend.entity.User;
@@ -21,6 +25,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.Collections;
@@ -28,6 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -40,17 +46,27 @@ public class StudentAttainmentServiceImpl implements StudentAttainmentService {
 
     private final CaseSubmissionRepository caseSubmissionRepository;
     private final CaseCoMappingRepository caseCoMappingRepository;
+    private final SubmissionCoScoreRepository submissionCoScoreRepository;
+    private final CaseStudyRepository caseStudyRepository;
     private final CoPoMappingService coPoMappingService;
     private final ProgramOutcomeRepository programOutcomeRepository;
     private final UserRepository userRepository;
 
     @Override
+    @Transactional(readOnly = true)
     public List<StudentCoAttainmentDTO> getCoAttainment(Long studentId) {
         validateStudentAccess(studentId);
 
         try {
             List<CaseSubmission> evaluatedSubmissions =
-                    caseSubmissionRepository.findByStudentIdAndStatus(studentId, SubmissionStatus.EVALUATED);
+                    caseSubmissionRepository.findByStudentIdAndStatusIn(
+                            studentId,
+                            List.of(
+                                    SubmissionStatus.EVALUATED,
+                                    SubmissionStatus.REEVAL_REQUESTED
+                            )
+                    );
+            log.info("Found {} evaluated submissions for student {}", evaluatedSubmissions.size(), studentId);
 
             if (evaluatedSubmissions == null || evaluatedSubmissions.isEmpty()) {
                 return Collections.emptyList();
@@ -75,6 +91,31 @@ public class StudentAttainmentServiceImpl implements StudentAttainmentService {
                 return Collections.emptyList();
             }
 
+            Map<Long, CaseStudy> caseStudyMap = caseStudyRepository.findAllById(caseIds).stream()
+                    .filter(caseStudy -> caseStudy != null && caseStudy.getId() != null)
+                    .collect(Collectors.toMap(
+                            CaseStudy::getId,
+                            caseStudy -> caseStudy,
+                            (existing, replacement) -> existing
+                    ));
+
+            Map<Long, Map<Long, SubmissionCoScore>> coScoresBySubmission = new HashMap<>();
+            for (CaseSubmission submission : evaluatedSubmissions) {
+                if (submission == null || submission.getId() == null) {
+                    continue;
+                }
+
+                List<SubmissionCoScore> scores = submissionCoScoreRepository.findBySubmissionId(submission.getId());
+                Map<Long, SubmissionCoScore> coScoreMap = scores.stream()
+                        .filter(score -> score != null && score.getCoId() != null)
+                        .collect(Collectors.toMap(
+                                SubmissionCoScore::getCoId,
+                                score -> score,
+                                (existing, replacement) -> replacement
+                        ));
+                coScoresBySubmission.put(submission.getId(), coScoreMap);
+            }
+
             List<CaseCoMapping> mappings = caseCoMappingRepository.findByCaseStudyIdIn(caseIds);
             if (mappings == null || mappings.isEmpty()) {
                 return Collections.emptyList();
@@ -92,13 +133,39 @@ public class StudentAttainmentServiceImpl implements StudentAttainmentService {
                             return null;
                         }
 
-                        Integer score = submission.getMarksAwarded();
+                        Map<Long, SubmissionCoScore> coScoreMap =
+                                coScoresBySubmission.getOrDefault(submission.getId(), Map.of());
+                        Long courseOutcomeId = mapping.getCourseOutcome().getId();
+                        SubmissionCoScore coScore = coScoreMap.get(courseOutcomeId);
+
+                        int displayScore;
+                        String attainmentStatus;
+
+                        if (coScore != null
+                                && coScore.getScore() != null
+                                && coScore.getMaxScore() != null
+                                && coScore.getMaxScore() > 0) {
+                            displayScore = coScore.getScore();
+                            double percentage = (coScore.getScore() * 100.0) / coScore.getMaxScore();
+                            attainmentStatus = resolveAttainmentStatus(percentage);
+                        } else {
+                            CaseStudy caseStudy = caseStudyMap.get(submission.getCaseId());
+                            int maxMarks = (caseStudy != null
+                                    && caseStudy.getMaxMarks() != null
+                                    && caseStudy.getMaxMarks() > 0)
+                                    ? caseStudy.getMaxMarks()
+                                    : 100;
+                            double percentage = (submission.getMarksAwarded() * 100.0) / maxMarks;
+                            displayScore = submission.getMarksAwarded();
+                            attainmentStatus = resolveAttainmentStatus(percentage);
+                        }
+
                         return new StudentCoAttainmentDTO(
-                                mapping.getCourseOutcome().getId(),
+                                courseOutcomeId,
                                 mapping.getCourseOutcome().getCode(),
                                 mapping.getCourseOutcome().getDescription(),
-                                score,
-                                resolveAttainmentStatus(score)
+                                displayScore,
+                                attainmentStatus
                         );
                     })
                     .filter(Objects::nonNull)
@@ -113,22 +180,78 @@ public class StudentAttainmentServiceImpl implements StudentAttainmentService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<StudentPoAttainmentDTO> getPoAttainment(Long studentId) {
         validateStudentAccess(studentId);
 
         List<CaseSubmission> evaluatedSubmissions =
-                caseSubmissionRepository.findByStudentIdAndStatus(studentId, SubmissionStatus.EVALUATED);
+                caseSubmissionRepository.findByStudentIdAndStatusIn(
+                        studentId,
+                        List.of(
+                                SubmissionStatus.EVALUATED,
+                                SubmissionStatus.REEVAL_REQUESTED
+                        )
+                );
 
         if (evaluatedSubmissions.isEmpty()) {
             return List.of();
         }
 
-        Map<Long, List<Integer>> scoresByPoId = new HashMap<>();
+        Map<Long, CaseSubmission> submissionsByCaseId = evaluatedSubmissions.stream()
+                .filter(submission -> submission != null
+                        && submission.getCaseId() != null
+                        && submission.getMarksAwarded() != null)
+                .collect(Collectors.toMap(
+                        CaseSubmission::getCaseId,
+                        submission -> submission,
+                        (existing, replacement) -> replacement
+                ));
+
+        if (submissionsByCaseId.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Long> caseIds = submissionsByCaseId.keySet();
+        Map<Long, CaseStudy> caseStudyMap = caseStudyRepository.findAllById(caseIds).stream()
+                .filter(caseStudy -> caseStudy != null && caseStudy.getId() != null)
+                .collect(Collectors.toMap(
+                        CaseStudy::getId,
+                        caseStudy -> caseStudy,
+                        (existing, replacement) -> existing
+                ));
+
+        Map<Long, Map<Long, SubmissionCoScore>> coScoresBySubmission = new HashMap<>();
+        for (CaseSubmission submission : evaluatedSubmissions) {
+            if (submission == null || submission.getId() == null) {
+                continue;
+            }
+
+            List<SubmissionCoScore> scores = submissionCoScoreRepository.findBySubmissionId(submission.getId());
+            Map<Long, SubmissionCoScore> coScoreMap = scores.stream()
+                    .filter(score -> score != null && score.getCoId() != null)
+                    .collect(Collectors.toMap(
+                            SubmissionCoScore::getCoId,
+                            score -> score,
+                            (existing, replacement) -> replacement
+                    ));
+            coScoresBySubmission.put(submission.getId(), coScoreMap);
+        }
+
+        Map<Long, List<Double>> scoresByPoId = new HashMap<>();
 
         for (CaseSubmission submission : evaluatedSubmissions) {
             if (submission.getCaseId() == null || submission.getMarksAwarded() == null) {
                 continue;
             }
+
+            Map<Long, SubmissionCoScore> coScoreMap =
+                    coScoresBySubmission.getOrDefault(submission.getId(), Map.of());
+            CaseStudy caseStudy = caseStudyMap.get(submission.getCaseId());
+            int maxMarks = (caseStudy != null
+                    && caseStudy.getMaxMarks() != null
+                    && caseStudy.getMaxMarks() > 0)
+                    ? caseStudy.getMaxMarks()
+                    : 100;
 
             List<CaseCoMapping> coMappings = caseCoMappingRepository.findByCaseStudyId(submission.getCaseId());
             for (CaseCoMapping coMapping : coMappings) {
@@ -139,9 +262,20 @@ public class StudentAttainmentServiceImpl implements StudentAttainmentService {
                     continue;
                 }
 
+                SubmissionCoScore coScore = coScoreMap.get(courseOutcomeId);
+                double percentage;
+                if (coScore != null
+                        && coScore.getScore() != null
+                        && coScore.getMaxScore() != null
+                        && coScore.getMaxScore() > 0) {
+                    percentage = (coScore.getScore() * 100.0) / coScore.getMaxScore();
+                } else {
+                    percentage = (submission.getMarksAwarded() * 100.0) / maxMarks;
+                }
+
                 for (Long poId : coPoMappingService.getPoIdsForCo(courseOutcomeId)) {
                     scoresByPoId.computeIfAbsent(poId, ignored -> new java.util.ArrayList<>())
-                            .add(submission.getMarksAwarded());
+                            .add(percentage);
                 }
             }
         }
@@ -161,7 +295,7 @@ public class StudentAttainmentServiceImpl implements StudentAttainmentService {
                     }
 
                     double averageScore = entry.getValue().stream()
-                            .mapToInt(Integer::intValue)
+                            .mapToDouble(Double::doubleValue)
                             .average()
                             .orElse(0.0);
                     double roundedAverage = Math.round(averageScore * 100.0) / 100.0;

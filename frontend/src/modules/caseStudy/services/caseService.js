@@ -63,6 +63,13 @@ const caseService = {
     return response.data?.data ?? response.data ?? [];
   },
 
+  async createCourse({ courseCode, courseName }) {
+    const response = await axiosInstance.post(
+      `/courses?courseCode=${encodeURIComponent(courseCode)}&courseName=${encodeURIComponent(courseName)}`
+    );
+    return response.data?.data ?? response.data;
+  },
+
   async getAttemptTimeline(caseId) {
     const response = await axiosInstance.get(`/student/cases/${caseId}/timeline`);
     return response.data ?? [];
@@ -77,16 +84,17 @@ const caseService = {
 
   async createCase(payload) {
     const hasFile = payload?.caseMaterial instanceof File;
+    const clean = Object.fromEntries(
+      Object.entries(payload).filter(([, value]) => value !== null && value !== undefined)
+    );
 
     if (hasFile) {
-      const requestPayload = { ...payload };
-      const caseMaterial = requestPayload.caseMaterial;
-      delete requestPayload.caseMaterial;
+      const { caseMaterial, ...rest } = clean;
 
       const formData = new FormData();
       formData.append(
         "request",
-        new Blob([JSON.stringify(requestPayload)], { type: "application/json" })
+        new Blob([JSON.stringify(rest)], { type: "application/json" })
       );
       formData.append("caseMaterial", caseMaterial);
 
@@ -94,18 +102,28 @@ const caseService = {
       return response.data?.data ?? response.data;
     }
 
-    const response = await axiosInstance.post("/cases", payload);
+    const response = await axiosInstance.post("/cases", clean);
     return response.data?.data ?? response.data;
   },
 
   async updateCase(caseId, payload) {
-    const response = await axiosInstance.put(`/cases/${caseId}`, payload);
+    const response = await axiosInstance.put(`/faculty/cases/${caseId}`, payload);
     return response.data?.data ?? response.data;
   },
 
   async publishCase(caseId) {
     const response = await axiosInstance.put(`/admin/cases/${caseId}/publish`);
     return response.data;
+  },
+
+  async getAssignments(caseId) {
+    const response = await axiosInstance.get(`/admin/cases/${caseId}/assignments`);
+    return response.data ?? [];
+  },
+
+  async saveAssignments(caseId, facultyIds) {
+    const response = await axiosInstance.post(`/admin/cases/${caseId}/assign`, { facultyIds });
+    return response.data ?? [];
   },
 };
 

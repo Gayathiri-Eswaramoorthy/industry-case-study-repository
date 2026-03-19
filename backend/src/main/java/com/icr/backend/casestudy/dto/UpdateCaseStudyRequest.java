@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.icr.backend.casestudy.enums.DifficultyLevel;
 import com.icr.backend.casestudy.enums.SubmissionType;
 import com.icr.backend.enums.CaseStatus;
-import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import lombok.*;
@@ -29,7 +28,6 @@ public class UpdateCaseStudyRequest {
     private DifficultyLevel difficulty;
 
     @JsonFormat(pattern = "yyyy-MM-dd")
-    @Future(message = "Due date must be in the future")
     private LocalDate dueDate;
 
     private CaseStatus status;
@@ -38,4 +36,12 @@ public class UpdateCaseStudyRequest {
     private Integer maxMarks;
     private Long courseId;
     private List<Long> coIds;
+    private String caseMaterialPath;
+    private String problemStatement;
+    private String keyQuestions;
+    private String evaluationRubric;
+    private String constraints;
+    private String expectedOutcome;
+    private String referenceLinks;
+    private Integer estimatedHours;
 }

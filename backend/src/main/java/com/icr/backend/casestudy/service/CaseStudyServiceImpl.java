@@ -7,12 +7,14 @@ import com.icr.backend.casestudy.entity.CaseStudy;
 import com.icr.backend.casestudy.enums.ActivityEvent;
 import com.icr.backend.casestudy.enums.CaseCategory;
 import com.icr.backend.casestudy.enums.SubmissionType;
+import com.icr.backend.casestudy.repository.CaseAssignmentRepository;
 import com.icr.backend.casestudy.repository.CaseCoMappingRepository;
 import com.icr.backend.casestudy.repository.CaseStudyRepository;
 import com.icr.backend.course.entity.Course;
 import com.icr.backend.course.repository.CourseRepository;
 import com.icr.backend.entity.User;
 import com.icr.backend.enums.CaseStatus;
+import com.icr.backend.enums.RoleType;
 import com.icr.backend.exception.ResourceNotFoundException;
 import com.icr.backend.repository.UserRepository;
 import com.icr.backend.service.ActivityService;
@@ -26,6 +28,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -42,6 +45,7 @@ public class CaseStudyServiceImpl implements CaseStudyService {
     private final ActivityService activityService;
     private final CaseCoMappingService caseCoMappingService;
     private final CaseCoMappingRepository caseCoMappingRepository;
+    private final CaseAssignmentRepository caseAssignmentRepository;
 
     @Override
     public CaseStudyResponse createCase(CaseStudyRequest request) {
@@ -68,7 +72,7 @@ public class CaseStudyServiceImpl implements CaseStudyService {
                 .createdBy(user)
                 .dueDate(request.getDueDate())
                 .maxMarks(request.getMaxMarks())
-                .category(request.getCategory() != null ? request.getCategory() : CaseCategory.PRODUCT)
+                .category(parseCategoryEnum(request.getCategory()))
                 .submissionType(request.getSubmissionType() != null ? request.getSubmissionType() : SubmissionType.TEXT)
                 .caseMaterialPath(request.getCaseMaterialPath())
                 .problemStatement(request.getProblemStatement())
@@ -202,6 +206,17 @@ public class CaseStudyServiceImpl implements CaseStudyService {
 
     @Override
     public CaseStudyResponse publishCase(Long caseId) {
+        CaseStudy caseStudy = caseStudyRepository.findById(caseId)
+                .orElseThrow(() -> new RuntimeException("Case not found"));
+
+        boolean createdByAdmin = caseStudy.getCreatedBy() != null
+                && caseStudy.getCreatedBy().getRole() != null
+                && caseStudy.getCreatedBy().getRole().getName() == RoleType.ADMIN;
+
+        if (createdByAdmin && !caseAssignmentRepository.existsByCaseStudyId(caseId)) {
+            throw new IllegalStateException("Assign at least one faculty before publishing this case");
+        }
+
         return updateCaseStatus(caseId, CaseStatus.PUBLISHED);
     }
 
@@ -247,12 +262,20 @@ public class CaseStudyServiceImpl implements CaseStudyService {
                 throw new AccessDeniedException("You can only edit your own cases");
             }
 
-            if (caseStudy.getStatus() == CaseStatus.DRAFT) {
+            if (isAdmin || caseStudy.getStatus() == CaseStatus.DRAFT) {
                 if (request.getTitle() != null) caseStudy.setTitle(request.getTitle());
                 if (request.getDescription() != null) caseStudy.setDescription(request.getDescription());
                 if (request.getCategory() != null) caseStudy.setCategory(parseCategory(request.getCategory()));
                 if (request.getDifficulty() != null) caseStudy.setDifficulty(request.getDifficulty());
                 if (request.getDueDate() != null) caseStudy.setDueDate(request.getDueDate().atStartOfDay());
+                if (request.getCaseMaterialPath() != null) caseStudy.setCaseMaterialPath(request.getCaseMaterialPath());
+                if (request.getProblemStatement() != null) caseStudy.setProblemStatement(request.getProblemStatement());
+                if (request.getKeyQuestions() != null) caseStudy.setKeyQuestions(request.getKeyQuestions());
+                if (request.getEvaluationRubric() != null) caseStudy.setEvaluationRubric(request.getEvaluationRubric());
+                if (request.getConstraints() != null) caseStudy.setConstraints(request.getConstraints());
+                if (request.getExpectedOutcome() != null) caseStudy.setExpectedOutcome(request.getExpectedOutcome());
+                if (request.getReferenceLinks() != null) caseStudy.setReferenceLinks(request.getReferenceLinks());
+                if (request.getEstimatedHours() != null) caseStudy.setEstimatedHours(request.getEstimatedHours());
                 if (request.getMaxMarks() != null) caseStudy.setMaxMarks(request.getMaxMarks());
                 if (request.getSubmissionType() != null) caseStudy.setSubmissionType(request.getSubmissionType());
                 if (request.getCourseId() != null) {
@@ -267,6 +290,9 @@ public class CaseStudyServiceImpl implements CaseStudyService {
             } else if (caseStudy.getStatus() == CaseStatus.PUBLISHED) {
                 if (request.getDueDate() != null) caseStudy.setDueDate(request.getDueDate().atStartOfDay());
                 if (request.getMaxMarks() != null) caseStudy.setMaxMarks(request.getMaxMarks());
+                if (request.getEvaluationRubric() != null) caseStudy.setEvaluationRubric(request.getEvaluationRubric());
+                if (request.getReferenceLinks() != null) caseStudy.setReferenceLinks(request.getReferenceLinks());
+                if (request.getEstimatedHours() != null) caseStudy.setEstimatedHours(request.getEstimatedHours());
             }
 
             CaseStudy saved = caseStudyRepository.save(caseStudy);
@@ -340,6 +366,20 @@ public class CaseStudyServiceImpl implements CaseStudyService {
             return CaseCategory.valueOf(categoryValue.trim().toUpperCase());
         } catch (Exception ex) {
             throw new IllegalArgumentException("Invalid category: " + categoryValue);
+        }
+    }
+
+    private CaseCategory parseCategoryEnum(CaseCategory category) {
+        if (category == null) {
+            return CaseCategory.PRODUCT;
+        }
+        try {
+            return CaseCategory.valueOf(category.name());
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException(
+                    "Invalid category value: " + category
+                            + ". Must be one of: " + Arrays.toString(CaseCategory.values())
+            );
         }
     }
 }

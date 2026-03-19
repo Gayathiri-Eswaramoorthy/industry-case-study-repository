@@ -18,6 +18,18 @@ public interface CaseSubmissionRepository extends JpaRepository<CaseSubmission, 
 
     Optional<CaseSubmission> findByCaseIdAndStudentId(Long caseId, Long studentId);
 
+    @Query("""
+            SELECT s FROM CaseSubmission s
+            WHERE s.caseId = :caseId
+              AND s.studentId = :studentId
+              AND s.status = :status
+            """)
+    Optional<CaseSubmission> findByCaseIdAndStudentIdAndStatus(
+            @Param("caseId") Long caseId,
+            @Param("studentId") Long studentId,
+            @Param("status") SubmissionStatus status
+    );
+
     List<CaseSubmission> findByCaseId(Long caseId);
 
     List<CaseSubmission> findByCaseIdInOrderBySubmittedAtDesc(List<Long> caseIds);
@@ -77,6 +89,10 @@ public interface CaseSubmissionRepository extends JpaRepository<CaseSubmission, 
     Page<CaseSubmission> findByStudentId(Long studentId, Pageable pageable);
 
     List<CaseSubmission> findByStudentIdAndStatus(Long studentId, SubmissionStatus status);
+
+    List<CaseSubmission> findByStudentIdAndStatusIn(Long studentId, List<SubmissionStatus> statuses);
+
+    List<CaseSubmission> findByStatus(SubmissionStatus status);
 
     List<CaseSubmission> findByStatusAndMarksAwardedIsNotNull(SubmissionStatus status);
 

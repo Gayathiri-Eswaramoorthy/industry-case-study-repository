@@ -1,10 +1,11 @@
 import { useContext, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-hot-toast";
 import { Lock, Plus, Trash2 } from "lucide-react";
 import caseService from "../services/caseService";
 import { AuthContext } from "../../../context/AuthContext";
+import { getUsers } from "../../../api/userService";
 
 function parseKeyQuestions(value) {
   if (!value) {
@@ -48,6 +49,9 @@ function CaseEditPage() {
   const [coIds, setCoIds] = useState([]);
   const [courseOutcomes, setCourseOutcomes] = useState([]);
   const [courseOutcomesLoading, setCourseOutcomesLoading] = useState(true);
+  const [facultyOptions, setFacultyOptions] = useState([]);
+  const [assignedFacultyIds, setAssignedFacultyIds] = useState([]);
+  const [assignmentsLoading, setAssignmentsLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -118,6 +122,52 @@ function CaseEditPage() {
     loadCourseOutcomes();
   }, [courseId]);
 
+  const loadAssignments = async () => {
+    if (!caseId || role !== "ADMIN") {
+      setAssignmentsLoading(false);
+      return;
+    }
+
+    try {
+      setAssignmentsLoading(true);
+      const assignments = await caseService.getAssignments(caseId);
+      setAssignedFacultyIds(
+        Array.isArray(assignments)
+          ? assignments.map((item) => item.facultyId).filter(Boolean)
+          : []
+      );
+    } catch (err) {
+      console.error("Error loading assignments:", err);
+      setAssignedFacultyIds([]);
+      toast.error("Unable to load faculty assignments.");
+    } finally {
+      setAssignmentsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const loadFacultyOptions = async () => {
+      if (role !== "ADMIN") {
+        return;
+      }
+
+      try {
+        const data = await getUsers({ page: 0, size: 100, role: "FACULTY" });
+        setFacultyOptions(Array.isArray(data?.content) ? data.content : []);
+      } catch (err) {
+        console.error("Error loading faculty users:", err);
+        setFacultyOptions([]);
+        toast.error("Unable to load faculty users.");
+      }
+    };
+
+    loadFacultyOptions();
+  }, [role]);
+
+  useEffect(() => {
+    loadAssignments();
+  }, [caseId, role]);
+
   useEffect(() => {
     if (role === "STUDENT") {
       navigate("/dashboard", { replace: true });
@@ -147,6 +197,29 @@ function CaseEditPage() {
     );
   };
 
+  const toggleAssignedFaculty = (facultyId) => {
+    setAssignedFacultyIds((prev) =>
+      prev.includes(facultyId)
+        ? prev.filter((id) => id !== facultyId)
+        : [...prev, facultyId]
+    );
+  };
+
+  const saveAssignmentsMutation = useMutation({
+    mutationFn: (facultyIds) => caseService.saveAssignments(caseId, facultyIds),
+    onSuccess: async () => {
+      toast.success("Faculty assignments saved");
+      await loadAssignments();
+    },
+    onError: (err) => {
+      toast.error(
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        "Unable to save faculty assignments."
+      );
+    },
+  });
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -171,6 +244,13 @@ function CaseEditPage() {
           maxMarks: maxMarks ? Number(maxMarks) : null,
           courseId,
           coIds,
+          problemStatement: problemStatement.trim() || null,
+          keyQuestions: JSON.stringify(keyQuestions.filter((q) => q.trim())),
+          constraints: constraints.trim() || null,
+          evaluationRubric: evaluationRubric.trim() || null,
+          expectedOutcome: expectedOutcome.trim() || null,
+          referenceLinks: referenceLinks.trim() || null,
+          estimatedHours: estimatedHours ? Number(estimatedHours) : null,
         }
       );
 
@@ -433,6 +513,70 @@ function CaseEditPage() {
                   </div>
                 )}
               </section>
+
+              {role === "ADMIN" && (
+                <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                  <div className="mb-3">
+                    <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">Assigned Faculty</h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      Select faculty members who can review this case.
+                    </p>
+                  </div>
+
+                  {caseStatus === "DRAFT" && assignedFacultyIds.length === 0 && (
+                    <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-200">
+                      You must assign at least one faculty before publishing this case.
+                    </div>
+                  )}
+
+                  {assignmentsLoading ? (
+                    <div className="space-y-2">
+                      {Array.from({ length: 3 }).map((_, index) => (
+                        <div key={index} className="h-12 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                      ))}
+                    </div>
+                  ) : facultyOptions.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                      No faculty users available.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        {facultyOptions.map((faculty) => (
+                          <label
+                            key={faculty.id}
+                            className="flex items-start gap-3 rounded-lg border border-slate-200 px-3 py-3 transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/50"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={assignedFacultyIds.includes(faculty.id)}
+                              onChange={() => toggleAssignedFaculty(faculty.id)}
+                              className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500 dark:border-slate-600"
+                            />
+                            <div className="text-sm">
+                              <div className="font-medium text-slate-800 dark:text-slate-100">
+                                {faculty.fullName}
+                              </div>
+                              <div className="text-slate-500 dark:text-slate-400">
+                                {faculty.email}
+                              </div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => saveAssignmentsMutation.mutate(assignedFacultyIds)}
+                        disabled={saveAssignmentsMutation.isPending}
+                        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
+                      >
+                        {saveAssignmentsMutation.isPending ? "Saving..." : "Save Assignments"}
+                      </button>
+                    </div>
+                  )}
+                </section>
+              )}
             </div>
           </div>
 

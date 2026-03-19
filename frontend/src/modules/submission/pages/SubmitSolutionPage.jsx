@@ -197,7 +197,8 @@ function SubmitSolutionPage() {
       const status = err?.response?.status;
       const message =
         status === 409
-          ? "You have already submitted a solution for this case."
+          ? err?.response?.data?.message ||
+            "Your submission has already been evaluated and cannot be changed."
           : err?.response?.data?.message || "Unable to submit solution. Please try again.";
       setError(message);
     } finally {

@@ -1,7 +1,8 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { GraduationCap, Info } from "lucide-react";
+import { toast } from "react-hot-toast";
 import axiosInstance from "../../../api/axiosInstance";
 import caseService from "../services/caseService";
 import submissionService from "../../submission/services/submissionService";
@@ -48,6 +49,8 @@ function CaseDetailsPage() {
   const [coScores, setCoScores] = useState([]);
   const [courseOutcomes, setCourseOutcomes] = useState([]);
   const [timelineEvents, setTimelineEvents] = useState([]);
+  const [showReevalForm, setShowReevalForm] = useState(false);
+  const [reevalReason, setReevalReason] = useState("");
 
   const {
     data: caseItem,
@@ -65,7 +68,8 @@ function CaseDetailsPage() {
     enabled: Boolean(caseItem?.courseId),
     queryFn: async () => {
       const response = await axiosInstance.get(`/course-outcomes/${caseItem.courseId}`);
-      return Array.isArray(response.data) ? response.data : [];
+      const list = response.data?.data ?? response.data;
+      return Array.isArray(list) ? list : [];
     },
   });
 
@@ -85,29 +89,50 @@ function CaseDetailsPage() {
     ? "Unable to load case details. Please try again."
     : null;
 
-  useEffect(() => {
-    const checkSubmission = async () => {
-      if (role !== "STUDENT" || !caseItem) {
-        return;
-      }
+  const refreshMySubmission = async () => {
+    if (role !== "STUDENT" || !caseItem) {
+      setMySubmission(null);
+      return;
+    }
 
-      setCheckingSubmission(true);
+    setCheckingSubmission(true);
 
-      try {
-        const submissions = await submissionService.getMySubmissions();
-        const existing = Array.isArray(submissions)
-          ? submissions.find((submission) => submission.caseId === caseItem.id)
+    try {
+      const submissions = await submissionService.getMySubmissions();
+      const existing = Array.isArray(submissions)
+        ? submissions.find((submission) => submission.caseId === caseItem.id)
+        : Array.isArray(submissions?.content)
+          ? submissions.content.find((submission) => submission.caseId === caseItem.id)
           : null;
 
-        setMySubmission(existing || null);
-      } catch {
-        setMySubmission(null);
-      } finally {
-        setCheckingSubmission(false);
-      }
-    };
+      setMySubmission(existing || null);
+    } catch {
+      setMySubmission(null);
+    } finally {
+      setCheckingSubmission(false);
+    }
+  };
 
-    checkSubmission();
+  const requestReevalMutation = useMutation({
+    mutationFn: (reason) =>
+      axiosInstance.post(`/submissions/${mySubmission.id}/request-reeval`, { reason }),
+    onSuccess: async () => {
+      toast.success("Re-evaluation request submitted");
+      setShowReevalForm(false);
+      setReevalReason("");
+      await refreshMySubmission();
+    },
+    onError: (mutationError) => {
+      toast.error(
+        mutationError?.response?.data?.message ||
+        mutationError?.response?.data?.error ||
+        "Failed to submit re-evaluation request"
+      );
+    },
+  });
+
+  useEffect(() => {
+    refreshMySubmission();
   }, [role, caseItem]);
 
   useEffect(() => {
@@ -150,7 +175,8 @@ function CaseDetailsPage() {
         ]);
 
         setCoScores(Array.isArray(scores) ? scores : []);
-        setCourseOutcomes(Array.isArray(outcomes.data) ? outcomes.data : []);
+        const outcomeList = outcomes.data?.data ?? outcomes.data;
+        setCourseOutcomes(Array.isArray(outcomeList) ? outcomeList : []);
       } catch {
         setCoScores([]);
         setCourseOutcomes([]);
@@ -171,6 +197,18 @@ function CaseDetailsPage() {
 
   const totalCoScore = coScores.reduce((sum, item) => sum + (item.score ?? 0), 0);
   const totalCoMaxScore = coScores.reduce((sum, item) => sum + (item.maxScore ?? 0), 0);
+
+  const handleRequestReeval = (e) => {
+    e.preventDefault();
+
+    const trimmedReason = reevalReason.trim();
+    if (trimmedReason.length < 20) {
+      toast.error("Please provide at least 20 characters for the reason");
+      return;
+    }
+
+    requestReevalMutation.mutate(trimmedReason);
+  };
 
   return (
     <div className="space-y-6">
@@ -369,7 +407,37 @@ function CaseDetailsPage() {
 
               {!checkingSubmission && mySubmission && (
                 <div className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-950/30 dark:text-emerald-200">
-                  <div className="font-semibold">Submission sent</div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-semibold">
+                      {mySubmission.status === "EVALUATED"
+                        ? "Submission evaluated"
+                        : mySubmission.status === "REEVAL_REQUESTED"
+                          ? "Re-evaluation requested"
+                          : "Submission sent"}
+                    </span>
+                    {mySubmission.status === "EVALUATED" && (
+                      <button
+                        type="button"
+                        onClick={() => setShowReevalForm((prev) => !prev)}
+                        className="rounded-md border border-emerald-600 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-400 dark:text-emerald-300 dark:hover:bg-emerald-900"
+                      >
+                        Request Re-evaluation
+                      </button>
+                    )}
+                    {(mySubmission.status === "SUBMITTED" || mySubmission.status === "UNDER_REVIEW") && (
+                      <Link
+                        to={`/cases/${caseId}/submit`}
+                        className="rounded-md border border-emerald-600 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-400 dark:text-emerald-300 dark:hover:bg-emerald-900"
+                      >
+                        Resubmit
+                      </Link>
+                    )}
+                    {mySubmission.status === "REEVAL_REQUESTED" && (
+                      <span className="rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        Re-evaluation requested
+                      </span>
+                    )}
+                  </div>
                   {mySubmission.marksAwarded != null && (
                     <div className="space-y-0.5 text-xs">
                       <div>Marks: {mySubmission.marksAwarded}</div>
@@ -377,6 +445,50 @@ function CaseDetailsPage() {
                         <div>Feedback: {mySubmission.facultyFeedback}</div>
                       )}
                     </div>
+                  )}
+                  {(mySubmission.status === "SUBMITTED" || mySubmission.status === "UNDER_REVIEW") && (
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                      You can resubmit until your submission is evaluated by faculty.
+                    </p>
+                  )}
+                  {showReevalForm && mySubmission.status === "EVALUATED" && (
+                    <form onSubmit={handleRequestReeval} className="space-y-3 rounded-lg border border-emerald-200 bg-white/70 p-3 dark:border-emerald-500/20 dark:bg-slate-900/60">
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-emerald-800 dark:text-emerald-200">
+                          Reason for re-evaluation
+                        </label>
+                        <textarea
+                          rows={4}
+                          value={reevalReason}
+                          onChange={(e) => setReevalReason(e.target.value)}
+                          className="w-full rounded-md border border-emerald-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                          placeholder="Explain why you believe this submission should be reviewed again."
+                          required
+                        />
+                        <p className="mt-1 text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
+                          Minimum 20 characters.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="submit"
+                          disabled={requestReevalMutation.isPending}
+                          className="rounded-md bg-emerald-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60"
+                        >
+                          {requestReevalMutation.isPending ? "Submitting..." : "Submit Request"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowReevalForm(false);
+                            setReevalReason("");
+                          }}
+                          className="rounded-md border border-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-500/30 dark:text-emerald-200 dark:hover:bg-emerald-900"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
                   )}
                 </div>
               )}

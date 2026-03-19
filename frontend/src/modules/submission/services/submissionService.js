@@ -1,7 +1,21 @@
 import axiosInstance from "../../../api/axiosInstance";
 
 const submissionService = {
-  async submitSolution({ caseId, submissionType, solutionText, githubLink, file, selfRating }) {
+  async submitSolution({
+    caseId,
+    submissionType,
+    solutionText,
+    executiveSummary,
+    situationAnalysis,
+    rootCauseAnalysis,
+    proposedSolution,
+    implementationPlan,
+    risksAndConstraints,
+    conclusion,
+    githubLink,
+    file,
+    selfRating,
+  }) {
     if (submissionType === "PDF") {
       const formData = new FormData();
       formData.append("caseId", String(caseId));
@@ -20,9 +34,16 @@ const submissionService = {
 
     const payload = {
       caseId,
-      selfRating,
-      ...(submissionType === "TEXT" ? { solutionText } : {}),
-      ...(submissionType === "GITHUB_LINK" ? { githubLink } : {}),
+      selfRating: selfRating ?? null,
+      solutionText: solutionText?.trim() || null,
+      executiveSummary: executiveSummary?.trim() || null,
+      situationAnalysis: situationAnalysis?.trim() || null,
+      rootCauseAnalysis: rootCauseAnalysis?.trim() || null,
+      proposedSolution: proposedSolution?.trim() || null,
+      implementationPlan: implementationPlan?.trim() || null,
+      risksAndConstraints: risksAndConstraints?.trim() || null,
+      conclusion: conclusion?.trim() || null,
+      githubLink: githubLink?.trim() || null,
     };
 
     const response = await axiosInstance.post("/submissions", payload);

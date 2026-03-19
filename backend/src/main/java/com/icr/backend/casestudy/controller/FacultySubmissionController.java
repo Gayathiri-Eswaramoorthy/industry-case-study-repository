@@ -25,14 +25,14 @@ public class FacultySubmissionController {
     private final CaseSubmissionService caseSubmissionService;
 
     @GetMapping("/submissions")
-    @PreAuthorize("hasRole('FACULTY')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN')")
     @Operation(summary = "Get submission review queue for logged-in faculty")
     public ResponseEntity<List<FacultySubmissionDTO>> getFacultySubmissions() {
         return ResponseEntity.ok(submissionService.getFacultySubmissions());
     }
 
     @GetMapping("/submissions/{id}")
-    @PreAuthorize("hasRole('FACULTY')")
+    @PreAuthorize("hasAnyRole('FACULTY', 'ADMIN')")
     @Operation(summary = "Get one submission for faculty review")
     public FacultySubmissionDTO getFacultySubmission(@PathVariable Long id) {
         return caseSubmissionService.getFacultySubmission(id);

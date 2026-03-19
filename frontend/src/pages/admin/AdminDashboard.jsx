@@ -15,6 +15,7 @@ import {
   Activity,
   ArrowRight,
 } from "lucide-react";
+import axiosInstance from "../../api/axiosInstance";
 import analyticsService from "../../modules/analytics/services/analyticsService";
 import activityService from "../../modules/analytics/services/activityService";
 
@@ -109,6 +110,17 @@ function AdminDashboard() {
   });
 
   const {
+    data: reevalRequests = [],
+    isLoading: isLoadingReevalRequests,
+  } = useQuery({
+    queryKey: ["reeval-requests"],
+    queryFn: async () => {
+      const response = await axiosInstance.get("/admin/submissions/reeval-pending");
+      return Array.isArray(response.data) ? response.data : [];
+    },
+  });
+
+  const {
     data: activities = [],
     isLoading: isLoadingActivities,
     isError: activityError,
@@ -119,8 +131,9 @@ function AdminDashboard() {
   });
 
   const isLoading =
-    isLoadingDashboard || isLoadingUsers || isLoadingSubmissions || isLoadingCaseAnalytics;
+    isLoadingDashboard || isLoadingUsers || isLoadingSubmissions || isLoadingCaseAnalytics || isLoadingReevalRequests;
   const isError = dashboardError || userError || submissionError || caseError;
+  const reevalCount = reevalRequests.length;
 
   const metrics = {
     totalUsers: dashboardData?.totalUsers ?? userAnalytics?.totalUsers ?? 0,
@@ -186,8 +199,19 @@ function AdminDashboard() {
       });
     }
 
+    if (reevalCount > 0) {
+      items.push({
+        key: "reeval-requests",
+        text: `${reevalCount} re-evaluation requests pending`,
+        to: "/admin/reeval-queue",
+        linkText: "Open Queue",
+        style:
+          "border-indigo-200 border-l-4 border-l-indigo-400 bg-indigo-50 text-indigo-800 dark:border-indigo-500/40 dark:border-l-indigo-400 dark:bg-indigo-950/30 dark:text-indigo-200",
+      });
+    }
+
     return items;
-  }, [metrics.draftCases, metrics.pendingReviews]);
+  }, [metrics.draftCases, metrics.pendingReviews, reevalCount]);
 
   const quickActions = [
     {

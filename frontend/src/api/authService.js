@@ -16,14 +16,18 @@ export const loginUser = async (email, password) => {
         ? response.data.user || null
         : null;
 
-    if (token && !user) {
+    if (token && (!user || !user.id)) {
       try {
         const decoded = jwtDecode(token);
         user = {
-          id: decoded.id ?? null,
+          id: decoded.id ?? decoded.userId ?? decoded.sub_id ?? null,
           email: decoded.sub ?? "",
           role: decoded.role ?? "STUDENT",
         };
+        if (!user.id) {
+          const allClaims = Object.keys(decoded);
+          console.warn("JWT claims available:", allClaims, decoded);
+        }
       } catch {
         user = null;
       }

@@ -10,6 +10,7 @@ import {
   Users,
   ClipboardList,
   FileText,
+  RefreshCcw,
   TrendingUp,
   LogOut,
   ChevronLeft,
@@ -48,6 +49,7 @@ function ImprovedSidebar({ isCollapsed, onToggleCollapse }) {
         { to: "/analytics", label: "Analytics", icon: BarChart3 },
         { to: "/admin/program-outcomes", label: "Program Outcomes", icon: Target },
         { to: "/admin/course-outcomes", label: "CO Mapping", icon: GitMerge },
+        { to: "/admin/reeval-queue", label: "Re-eval Queue", icon: RefreshCcw },
         { to: "/users", label: "Users", icon: Users },
       ];
     }

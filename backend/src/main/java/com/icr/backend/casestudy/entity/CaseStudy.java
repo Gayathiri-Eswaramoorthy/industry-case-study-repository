@@ -31,7 +31,7 @@ public class CaseStudy {
     private String description;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "VARCHAR(20)")
     private DifficultyLevel difficulty;
 
     @Enumerated(EnumType.STRING)
@@ -39,19 +39,19 @@ public class CaseStudy {
     @Builder.Default
     private CaseStatus status = CaseStatus.DRAFT;
 
-    @Column(nullable = false)
+    @Column
     private LocalDateTime dueDate;
 
-    @Column(nullable = false)
+    @Column
     private Integer maxMarks;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     private CaseCategory category = CaseCategory.PRODUCT;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "VARCHAR(20)")
     @Builder.Default
     private SubmissionType submissionType = SubmissionType.TEXT;
 

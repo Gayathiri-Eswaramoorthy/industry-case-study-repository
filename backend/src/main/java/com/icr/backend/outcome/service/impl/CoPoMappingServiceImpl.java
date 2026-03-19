@@ -11,6 +11,7 @@ import com.icr.backend.outcome.repository.ProgramOutcomeRepository;
 import com.icr.backend.outcome.service.CoPoMappingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Objects;
@@ -24,6 +25,7 @@ public class CoPoMappingServiceImpl implements CoPoMappingService {
     private final ProgramOutcomeRepository programOutcomeRepository;
 
     @Override
+    @Transactional
     public void mapCoToPo(Long coId, Long poId) {
         if (courseOutcomePORepository.existsByCourseOutcomeIdAndProgramOutcomeId(coId, poId)) {
             throw new DuplicateResourceException("CO to PO mapping already exists");
@@ -50,6 +52,7 @@ public class CoPoMappingServiceImpl implements CoPoMappingService {
     }
 
     @Override
+    @Transactional
     public void updatePoMappingsForCo(Long coId, List<Long> poIds) {
         if (!courseOutcomeRepository.existsById(coId)) {
             throw new ResourceNotFoundException("Course Outcome not found with id: " + coId);

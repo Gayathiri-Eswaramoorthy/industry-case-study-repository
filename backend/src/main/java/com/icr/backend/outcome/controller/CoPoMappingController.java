@@ -6,6 +6,7 @@ import com.icr.backend.outcome.dto.CoPoMappingUpdateRequest;
 import com.icr.backend.outcome.service.CoPoMappingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -44,6 +45,7 @@ public class CoPoMappingController {
 
     @PutMapping("/{coId}")
     @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
     public ApiResponse<Void> updatePoMappingsForCo(
             @PathVariable Long coId,
             @RequestBody CoPoMappingUpdateRequest request

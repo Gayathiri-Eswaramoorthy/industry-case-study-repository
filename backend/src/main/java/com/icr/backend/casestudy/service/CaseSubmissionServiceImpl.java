@@ -11,21 +11,25 @@ import com.icr.backend.casestudy.entity.SubmissionCoScore;
 import com.icr.backend.casestudy.enums.ActivityEvent;
 import com.icr.backend.casestudy.enums.SubmissionStatus;
 import com.icr.backend.casestudy.enums.SubmissionType;
+import com.icr.backend.casestudy.repository.CaseAssignmentRepository;
 import com.icr.backend.casestudy.repository.CaseStudyRepository;
 import com.icr.backend.casestudy.repository.CaseSubmissionRepository;
 import com.icr.backend.casestudy.repository.SubmissionCoScoreRepository;
 import com.icr.backend.entity.User;
 import com.icr.backend.enums.CaseStatus;
+import com.icr.backend.enums.RoleType;
 import com.icr.backend.exception.DuplicateSubmissionException;
 import com.icr.backend.exception.ResourceNotFoundException;
 import com.icr.backend.repository.UserRepository;
 import com.icr.backend.service.ActivityService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -36,13 +40,15 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CaseSubmissionServiceImpl implements CaseSubmissionService {
 
     private final CaseSubmissionRepository caseSubmissionRepository;
@@ -50,8 +56,10 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
     private final SubmissionCoScoreRepository submissionCoScoreRepository;
     private final UserRepository userRepository;
     private final ActivityService activityService;
+    private final CaseAssignmentRepository caseAssignmentRepository;
 
     @Override
+    @Transactional
     public CaseSubmissionResponse submitSolution(SubmissionRequest request, MultipartFile pdfFile) {
 
         var auth = SecurityContextHolder.getContext().getAuthentication();
@@ -72,10 +80,43 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
             throw new IllegalArgumentException("Submissions are allowed only for published case studies");
         }
 
-        if (caseSubmissionRepository
-                .findByCaseIdAndStudentId(caseStudy.getId(), student.getId())
-                .isPresent()) {
-            throw new DuplicateSubmissionException("You have already submitted this case");
+        Optional<CaseSubmission> existingSubmission = caseSubmissionRepository
+                .findByCaseIdAndStudentId(caseStudy.getId(), student.getId());
+
+        if (existingSubmission.isPresent()) {
+            CaseSubmission existing = existingSubmission.get();
+
+            if (existing.getStatus() == SubmissionStatus.EVALUATED) {
+                throw new DuplicateSubmissionException(
+                        "Your submission has already been evaluated and cannot be changed."
+                );
+            }
+
+            SubmissionPayload payload = buildSubmissionPayload(
+                    caseStudy.getSubmissionType(), request, pdfFile
+            );
+
+            existing.setSolutionText(payload.solutionText());
+            existing.setExecutiveSummary(request.getExecutiveSummary());
+            existing.setSituationAnalysis(request.getSituationAnalysis());
+            existing.setRootCauseAnalysis(request.getRootCauseAnalysis());
+            existing.setProposedSolution(request.getProposedSolution());
+            existing.setImplementationPlan(request.getImplementationPlan());
+            existing.setRisksAndConstraints(request.getRisksAndConstraints());
+            existing.setConclusion(request.getConclusion());
+            existing.setGithubLink(payload.githubLink());
+            existing.setPdfFileName(payload.pdfFileName());
+            existing.setPdfFilePath(payload.pdfFilePath());
+            existing.setSelfRating(request.getSelfRating());
+            existing.setStatus(SubmissionStatus.SUBMITTED);
+            existing.setSubmittedAt(LocalDateTime.now());
+            existing.setMarksAwarded(null);
+            existing.setFacultyFeedback(null);
+            existing.setEvaluatedAt(null);
+
+            CaseSubmission updated = caseSubmissionRepository.save(existing);
+            activityService.logEvent(student.getId(), caseStudy.getId(), ActivityEvent.SUBMITTED);
+            return mapToResponse(updated);
         }
 
         SubmissionPayload payload = buildSubmissionPayload(caseStudy.getSubmissionType(), request, pdfFile);
@@ -108,51 +149,106 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
     }
 
     @Override
+    @Transactional
     public CaseSubmissionResponse evaluateSubmission(Long submissionId,
                                                      SubmissionEvaluationRequest request) {
-        Integer marksAwarded = request != null ? request.getScore() : null;
-        if (marksAwarded == null) {
-            throw new IllegalArgumentException("Score is required");
+        try {
+            Integer marksAwarded = request != null ? request.getScore() : null;
+            if (marksAwarded == null) {
+                throw new IllegalArgumentException("Score is required");
+            }
+
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            User faculty = getAuthenticatedUser();
+            CaseSubmission submission = caseSubmissionRepository.findById(submissionId)
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Submission not found: " + submissionId));
+
+            boolean isAdmin = authentication != null && authentication.getAuthorities().stream()
+                    .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));
+
+            if (isAdmin) {
+                if (submission.getStatus() != SubmissionStatus.REEVAL_REQUESTED) {
+                    throw new IllegalStateException("Admin can only evaluate re-evaluation requests");
+                }
+            } else {
+                List<Long> createdCaseIds = caseStudyRepository.findByCreatedBy_Id(faculty.getId())
+                        .stream()
+                        .map(CaseStudy::getId)
+                        .toList();
+
+                List<Long> assignedCaseIds = caseAssignmentRepository.findByFacultyId(faculty.getId())
+                        .stream()
+                        .map(assignment -> assignment.getCaseStudy().getId())
+                        .toList();
+
+                List<Long> allowedCaseIds = Stream.concat(createdCaseIds.stream(), assignedCaseIds.stream())
+                        .distinct()
+                        .toList();
+
+                log.info("Faculty {} can evaluate cases: {}", faculty.getEmail(), allowedCaseIds);
+
+                if (allowedCaseIds.isEmpty()) {
+                    throw new ResourceNotFoundException("Submission not found");
+                }
+
+                submission = caseSubmissionRepository
+                        .findByIdAndCaseIdIn(submissionId, allowedCaseIds)
+                        .orElseThrow(() -> new ResourceNotFoundException("Submission not found"));
+
+                if (submission.getStatus() == SubmissionStatus.EVALUATED) {
+                    throw new IllegalStateException("This submission has already been evaluated");
+                }
+            }
+
+            submission.setMarksAwarded(marksAwarded);
+            submission.setFacultyFeedback(
+                    request != null && request.getFeedback() != null ? request.getFeedback() : null
+            );
+            submission.setStatus(SubmissionStatus.EVALUATED);
+            submission.setEvaluatedAt(LocalDateTime.now());
+
+            CaseSubmission saved = caseSubmissionRepository.save(submission);
+            log.info("Submission {} evaluated with score {}", submissionId, marksAwarded);
+
+            activityService.logEvent(
+                    submission.getStudentId(),
+                    submission.getCaseId(),
+                    ActivityEvent.EVALUATED
+            );
+
+            if (request != null && request.getCoScores() != null && !request.getCoScores().isEmpty()) {
+                submissionCoScoreRepository.deleteBySubmissionId(saved.getId());
+
+                List<SubmissionCoScore> coScores = request.getCoScores()
+                        .stream()
+                        .filter(coScore -> coScore.getCoId() != null &&
+                                coScore.getScore() != null &&
+                                coScore.getMaxScore() != null)
+                        .map(coScore -> SubmissionCoScore.builder()
+                                .submissionId(saved.getId())
+                                .coId(coScore.getCoId())
+                                .score(coScore.getScore())
+                                .maxScore(coScore.getMaxScore())
+                                .build())
+                        .toList();
+
+                submissionCoScoreRepository.saveAll(coScores);
+                log.info("Saved {} CO scores for submission {}", coScores.size(), submissionId);
+            }
+
+            return mapToResponse(saved);
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            log.warn("Evaluation rejected for submission {}: {}", submissionId, ex.getMessage());
+            throw ex;
+        } catch (Exception ex) {
+            log.error("Unexpected error evaluating submission {}", submissionId, ex);
+            throw new RuntimeException("Failed to evaluate submission: " + ex.getMessage(), ex);
         }
-
-        User faculty = getAuthenticatedUser();
-        List<Long> facultyCaseIds = caseStudyRepository.findByCreatedBy_Id(faculty.getId())
-                .stream()
-                .map(CaseStudy::getId)
-                .toList();
-        if (facultyCaseIds.isEmpty()) {
-            throw new ResourceNotFoundException("Submission not found");
-        }
-
-        CaseSubmission submission = caseSubmissionRepository.findByIdAndCaseIdIn(submissionId, facultyCaseIds)
-                .orElseThrow(() -> new ResourceNotFoundException("Submission not found"));
-
-        submission.setMarksAwarded(marksAwarded);
-        submission.setFacultyFeedback(request != null ? request.getFeedback() : null);
-        submission.setStatus(SubmissionStatus.EVALUATED);
-        submission.setEvaluatedAt(LocalDateTime.now());
-
-        CaseSubmission savedSubmission = caseSubmissionRepository.save(submission);
-
-        activityService.logEvent(submission.getStudentId(), submission.getCaseId(), ActivityEvent.EVALUATED);
-
-        if (request != null && request.getCoScores() != null && !request.getCoScores().isEmpty()) {
-            submissionCoScoreRepository.deleteBySubmissionId(savedSubmission.getId());
-            List<SubmissionCoScore> coScores = request.getCoScores().stream()
-                    .map(coScore -> SubmissionCoScore.builder()
-                            .submissionId(savedSubmission.getId())
-                            .coId(coScore.getCoId())
-                            .score(coScore.getScore())
-                            .maxScore(coScore.getMaxScore())
-                            .build())
-                    .toList();
-            submissionCoScoreRepository.saveAll(coScores);
-        }
-
-        return mapToResponse(savedSubmission);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<CaseSubmissionResponse> getSubmissionsByCase(Long caseId) {
 
         caseStudyRepository.findById(caseId)
@@ -165,6 +261,7 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<CaseSubmissionResponse> getMySubmissions(Pageable pageable) {
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -189,62 +286,67 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<FacultyCaseSubmissionDTO> getFacultySubmissionsByCase(Long caseId) {
         User faculty = getAuthenticatedUser();
         return caseSubmissionRepository.findFacultySubmissionsByCaseId(caseId, faculty.getId());
     }
 
     @Override
+    @Transactional(readOnly = true)
     public FacultySubmissionDTO getFacultySubmission(Long submissionId) {
-        User faculty = getAuthenticatedUser();
+        User currentUser = getAuthenticatedUser();
+        boolean isAdmin = currentUser.getRole() != null &&
+                currentUser.getRole().getName() == RoleType.ADMIN;
 
-        List<CaseStudy> facultyCases = caseStudyRepository.findByCreatedBy_Id(faculty.getId());
-        if (facultyCases.isEmpty()) {
-            throw new ResourceNotFoundException("Submission not found");
-        }
-
-        List<Long> caseIds = facultyCases.stream().map(CaseStudy::getId).toList();
-        Map<Long, String> caseTitles = facultyCases.stream()
-                .collect(Collectors.toMap(CaseStudy::getId, CaseStudy::getTitle));
-
-        CaseSubmission submission = caseSubmissionRepository.findByIdAndCaseIdIn(submissionId, caseIds)
+        CaseSubmission submission = caseSubmissionRepository.findById(submissionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Submission not found"));
 
         String studentName = userRepository.findById(submission.getStudentId())
                 .map(User::getFullName)
                 .orElse("Unknown Student");
 
-        CaseStudy caseStudy = facultyCases.stream()
-                .filter(item -> item.getId().equals(submission.getCaseId()))
-                .findFirst()
+        CaseStudy caseStudy = caseStudyRepository
+                .findByIdWithDetails(submission.getCaseId())
                 .orElse(null);
 
-        return new FacultySubmissionDTO(
-                submission.getId(),
-                submission.getCaseId(),
-                caseStudy != null && caseStudy.getCourse() != null ? caseStudy.getCourse().getId() : null,
-                studentName,
-                caseTitles.getOrDefault(submission.getCaseId(), "Unknown Case"),
-                submission.getSolutionText(),
-                submission.getExecutiveSummary(),
-                submission.getSituationAnalysis(),
-                submission.getRootCauseAnalysis(),
-                submission.getProposedSolution(),
-                submission.getImplementationPlan(),
-                submission.getRisksAndConstraints(),
-                submission.getConclusion(),
-                submission.getGithubLink(),
-                submission.getPdfFileName(),
-                submission.getPdfFilePath(),
-                submission.getSelfRating(),
-                submission.getMarksAwarded(),
-                submission.getFacultyFeedback(),
-                submission.getSubmittedAt(),
-                submission.getStatus()
+        boolean canEvaluate = isAdmin || (
+                caseStudy != null &&
+                caseStudy.getCreatedBy() != null &&
+                caseStudy.getCreatedBy().getId().equals(currentUser.getId())
         );
+
+        FacultySubmissionDTO dto = new FacultySubmissionDTO();
+        dto.setSubmissionId(submission.getId());
+        dto.setCaseId(submission.getCaseId());
+        dto.setCourseId(caseStudy != null && caseStudy.getCourse() != null
+                ? caseStudy.getCourse().getId() : null);
+        dto.setStudentName(studentName);
+        dto.setCaseTitle(caseStudy != null ? caseStudy.getTitle() : "Unknown Case");
+        dto.setCreatedByName(caseStudy != null && caseStudy.getCreatedBy() != null
+                ? caseStudy.getCreatedBy().getFullName() : null);
+        dto.setSolutionText(submission.getSolutionText());
+        dto.setExecutiveSummary(submission.getExecutiveSummary());
+        dto.setSituationAnalysis(submission.getSituationAnalysis());
+        dto.setRootCauseAnalysis(submission.getRootCauseAnalysis());
+        dto.setProposedSolution(submission.getProposedSolution());
+        dto.setImplementationPlan(submission.getImplementationPlan());
+        dto.setRisksAndConstraints(submission.getRisksAndConstraints());
+        dto.setConclusion(submission.getConclusion());
+        dto.setGithubLink(submission.getGithubLink());
+        dto.setPdfFileName(submission.getPdfFileName());
+        dto.setPdfFilePath(submission.getPdfFilePath());
+        dto.setSelfRating(submission.getSelfRating());
+        dto.setMarksAwarded(submission.getMarksAwarded());
+        dto.setFacultyFeedback(submission.getFacultyFeedback());
+        dto.setSubmittedAt(submission.getSubmittedAt());
+        dto.setStatus(submission.getStatus());
+        dto.setCanEvaluate(canEvaluate);
+        return dto;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<SubmissionCoScore> getCoScores(Long submissionId) {
         return submissionCoScoreRepository.findBySubmissionId(submissionId);
     }

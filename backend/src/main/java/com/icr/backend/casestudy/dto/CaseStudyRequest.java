@@ -4,7 +4,6 @@ import com.icr.backend.casestudy.enums.DifficultyLevel;
 import com.icr.backend.casestudy.enums.CaseCategory;
 import com.icr.backend.casestudy.enums.SubmissionType;
 import jakarta.validation.constraints.Future;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -37,7 +36,6 @@ public class CaseStudyRequest {
     @Future(message = "Due date must be in the future")
     private LocalDateTime dueDate;
 
-    @Min(value = 1, message = "Max marks must be at least 1")
     private Integer maxMarks;
 
     @NotNull(message = "Category is required")

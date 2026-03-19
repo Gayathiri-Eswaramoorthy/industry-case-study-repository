@@ -20,6 +20,9 @@ export function AuthProvider({ children }) {
     localStorage.setItem("token", token);
     localStorage.setItem("user", JSON.stringify(user));
     setAuth({ token, user });
+    if (!user?.id) {
+      console.warn("User object missing id - CO/PO attainment will not load", user);
+    }
   };
 
   const logout = () => {
