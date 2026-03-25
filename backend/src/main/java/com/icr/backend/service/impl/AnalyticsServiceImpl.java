@@ -9,11 +9,19 @@ import com.icr.backend.casestudy.repository.CaseSubmissionRepository;
 import com.icr.backend.casestudy.repository.CaseStudyRepository;
 import com.icr.backend.dto.CoAttainmentSummaryDTO;
 import com.icr.backend.dto.DashboardStatsResponse;
+import com.icr.backend.dto.FacultyPerformanceDTO;
+import com.icr.backend.dto.FacultyStudentSubmissionDTO;
+import com.icr.backend.dto.FacultyStudentsBreakdownDTO;
+import com.icr.backend.dto.OverallStatsDTO;
 import com.icr.backend.dto.TopCaseAnalyticsDTO;
 import com.icr.backend.enums.CaseStatus;
 import com.icr.backend.enums.RoleType;
+import com.icr.backend.enums.UserStatus;
+import com.icr.backend.entity.User;
 import com.icr.backend.outcome.entity.CourseOutcome;
+import com.icr.backend.repository.projection.FacultySubmissionStatusCountProjection;
 import com.icr.backend.outcome.repository.CourseOutcomeRepository;
+import com.icr.backend.repository.projection.StudentSubmissionStatusCountProjection;
 import com.icr.backend.repository.UserRepository;
 import com.icr.backend.service.AnalyticsService;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +34,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -83,7 +92,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 "totalCases", caseStudyRepository.count(),
                 "draftCases", caseStudyRepository.countByStatus(CaseStatus.DRAFT),
                 "publishedCases", caseStudyRepository.countByStatus(CaseStatus.PUBLISHED),
-                "archivedCases", caseStudyRepository.countByStatus(CaseStatus.ARCHIVED)
+                "submissionOpenCases", caseStudyRepository.countByStatus(CaseStatus.SUBMISSION_OPEN)
         );
     }
 
@@ -223,5 +232,155 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 .sorted(Comparator.comparing(TopCaseAnalyticsDTO::getAverageScore).reversed())
                 .limit(5)
                 .toList();
+    }
+
+    @Override
+    public List<FacultyPerformanceDTO> getFacultyPerformance() {
+        Map<Long, Map<SubmissionStatus, Long>> facultySubmissionCounts = caseSubmissionRepository
+                .findFacultySubmissionStatusCounts()
+                .stream()
+                .collect(Collectors.groupingBy(
+                        FacultySubmissionStatusCountProjection::getFacultyId,
+                        Collectors.toMap(
+                                FacultySubmissionStatusCountProjection::getStatus,
+                                row -> row.getTotal() == null ? 0L : row.getTotal(),
+                                Long::sum
+                        )
+                ));
+
+        return userRepository.fetchFacultyStudentAnalytics().stream()
+                .map(row -> {
+                    long total = row.getTotalStudents() == null ? 0L : row.getTotalStudents();
+                    long approved = row.getApprovedStudents() == null ? 0L : row.getApprovedStudents();
+                    long rejected = row.getRejectedStudents() == null ? 0L : row.getRejectedStudents();
+                    long pending = row.getPendingStudents() == null ? 0L : row.getPendingStudents();
+                    double approvalRate = total == 0 ? 0.0 : Math.round((approved * 10000.0) / total) / 100.0;
+                    Map<SubmissionStatus, Long> statusCounts = facultySubmissionCounts
+                            .getOrDefault(row.getFacultyId(), Map.of());
+                    long submitted = statusCounts.getOrDefault(SubmissionStatus.SUBMITTED, 0L);
+                    long underReview = statusCounts.getOrDefault(SubmissionStatus.UNDER_REVIEW, 0L);
+                    long reevalRequested = statusCounts.getOrDefault(SubmissionStatus.REEVAL_REQUESTED, 0L);
+                    long evaluated = statusCounts.getOrDefault(SubmissionStatus.EVALUATED, 0L);
+                    long totalSubmissions = submitted + underReview + reevalRequested + evaluated;
+
+                    return FacultyPerformanceDTO.builder()
+                            .facultyId(row.getFacultyId())
+                            .facultyName(row.getFacultyName())
+                            .totalStudents(total)
+                            .totalSubmissions(totalSubmissions)
+                            .submitted(submitted)
+                            .underReview(underReview)
+                            .reevalRequested(reevalRequested)
+                            .evaluated(evaluated)
+                            .approved(approved)
+                            .rejected(rejected)
+                            .pending(pending)
+                            .approvalRate(approvalRate)
+                            .build();
+                })
+                .sorted(Comparator.comparing(FacultyPerformanceDTO::getApprovalRate).reversed()
+                        .thenComparing(FacultyPerformanceDTO::getTotalStudents, Comparator.reverseOrder())
+                        .thenComparing(FacultyPerformanceDTO::getFacultyName, Comparator.nullsLast(String::compareToIgnoreCase)))
+                .toList();
+    }
+
+    @Override
+    public FacultyStudentsBreakdownDTO getFacultyStudentsBreakdown(Long facultyId) {
+        Optional<User> facultyOpt = userRepository.findById(facultyId);
+        User faculty = facultyOpt
+                .filter(user -> user.getRole() != null && user.getRole().getName() == RoleType.FACULTY)
+                .orElseThrow(() -> new IllegalArgumentException("Faculty not found"));
+
+        List<User> allStudents = userRepository.findByRole_NameAndRequestedFacultyId(RoleType.STUDENT, facultyId);
+
+        Map<Long, Map<SubmissionStatus, Long>> studentSubmissionCounts = caseSubmissionRepository
+                .findStudentSubmissionStatusCountsByFacultyId(facultyId)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        StudentSubmissionStatusCountProjection::getStudentId,
+                        Collectors.toMap(
+                                StudentSubmissionStatusCountProjection::getStatus,
+                                row -> row.getTotal() == null ? 0L : row.getTotal(),
+                                Long::sum
+                        )
+                ));
+
+        List<FacultyStudentSubmissionDTO> approved = new ArrayList<>();
+        List<FacultyStudentSubmissionDTO> pending = new ArrayList<>();
+        List<FacultyStudentSubmissionDTO> rejected = new ArrayList<>();
+
+        for (User student : allStudents) {
+            FacultyStudentSubmissionDTO dto = buildStudentSubmissionDto(student, studentSubmissionCounts.get(student.getId()));
+            if (student.getStatus() == UserStatus.APPROVED) {
+                approved.add(dto);
+            } else if (student.getStatus() == UserStatus.REJECTED) {
+                rejected.add(dto);
+            } else if (student.getStatus() == UserStatus.PENDING || student.getStatus() == UserStatus.PENDING_FACULTY_APPROVAL) {
+                pending.add(dto);
+            }
+        }
+
+        Comparator<FacultyStudentSubmissionDTO> byName = Comparator.comparing(
+                FacultyStudentSubmissionDTO::getStudentName,
+                Comparator.nullsLast(String::compareToIgnoreCase)
+        );
+        approved.sort(byName);
+        pending.sort(byName);
+        rejected.sort(byName);
+
+        return FacultyStudentsBreakdownDTO.builder()
+                .facultyId(faculty.getId())
+                .facultyName(faculty.getFullName())
+                .approvedStudents(approved)
+                .pendingStudents(pending)
+                .rejectedStudents(rejected)
+                .build();
+    }
+
+    @Override
+    public OverallStatsDTO getOverallStats() {
+        DashboardStatsResponse dashboard = getDashboardStats();
+        List<FacultyPerformanceDTO> facultyPerformance = getFacultyPerformance();
+
+        long approved = facultyPerformance.stream().mapToLong(FacultyPerformanceDTO::getApproved).sum();
+        long pending = facultyPerformance.stream().mapToLong(FacultyPerformanceDTO::getPending).sum();
+        long rejected = facultyPerformance.stream().mapToLong(FacultyPerformanceDTO::getRejected).sum();
+        long totalStudentsWithMapping = approved + pending + rejected;
+        double approvalRate = totalStudentsWithMapping == 0
+                ? 0.0
+                : Math.round((approved * 10000.0) / totalStudentsWithMapping) / 100.0;
+
+        return OverallStatsDTO.builder()
+                .totalUsers(dashboard.getTotalUsers())
+                .totalFaculty(userRepository.countByRole_Name(RoleType.FACULTY))
+                .totalStudents(userRepository.countByRole_Name(RoleType.STUDENT))
+                .totalCases(dashboard.getTotalCases())
+                .totalSubmissions(dashboard.getTotalSubmissions())
+                .approvedStudents(approved)
+                .pendingStudents(pending)
+                .rejectedStudents(rejected)
+                .overallApprovalRate(approvalRate)
+                .build();
+    }
+
+    private FacultyStudentSubmissionDTO buildStudentSubmissionDto(User student, Map<SubmissionStatus, Long> statusCounts) {
+        Map<SubmissionStatus, Long> safeCounts = statusCounts == null ? Map.of() : statusCounts;
+        long submitted = safeCounts.getOrDefault(SubmissionStatus.SUBMITTED, 0L);
+        long underReview = safeCounts.getOrDefault(SubmissionStatus.UNDER_REVIEW, 0L);
+        long reevalRequested = safeCounts.getOrDefault(SubmissionStatus.REEVAL_REQUESTED, 0L);
+        long evaluated = safeCounts.getOrDefault(SubmissionStatus.EVALUATED, 0L);
+        long totalSubmissions = submitted + underReview + reevalRequested + evaluated;
+
+        return FacultyStudentSubmissionDTO.builder()
+                .studentId(student.getId())
+                .studentName(student.getFullName())
+                .email(student.getEmail())
+                .status(student.getStatus() == null ? null : student.getStatus().name())
+                .totalSubmissions(totalSubmissions)
+                .submitted(submitted)
+                .underReview(underReview)
+                .reevalRequested(reevalRequested)
+                .evaluated(evaluated)
+                .build();
     }
 }

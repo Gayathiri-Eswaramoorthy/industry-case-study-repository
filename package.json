@@ -1,0 +1,28 @@
+{
+  "name": "industry-case-study-repository",
+  "version": "1.0.0",
+  "description": "A full-stack web application for managing industry case studies across academic institutions. Faculty can create and manage case studies, students can browse and submit solutions, and admins oversee the entire platform.",
+  "main": "playwright.config.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:e2e": "npx playwright test",
+    "test:e2e:ui": "npx playwright test --ui"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Gayathiri-Eswaramoorthy/industry-case-study-repository.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Gayathiri-Eswaramoorthy/industry-case-study-repository/issues"
+  },
+  "homepage": "https://github.com/Gayathiri-Eswaramoorthy/industry-case-study-repository#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
+  }
+}

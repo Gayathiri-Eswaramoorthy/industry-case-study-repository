@@ -13,7 +13,23 @@ public interface CaseStudyService {
 
     CaseStudyResponse createCase(CaseStudyRequest request);
 
+    default Page<CaseStudyResponse> getAllCases(Pageable pageable) {
+        return getAllCases(null, pageable);
+    }
+
     Page<CaseStudyResponse> getAllCases(CaseStatus status, Pageable pageable);
+
+    Page<CaseStudyResponse> searchCases(
+            String q,
+            CaseStatus status,
+            String category,
+            String difficulty,
+            List<String> tags,
+            Integer minYear,
+            Integer maxYear,
+            String sortParam,
+            Pageable pageable
+    );
 
     Page<CaseStudyResponse> getCasesByCourse(Long courseId, CaseStatus status, Pageable pageable);
 
@@ -23,7 +39,11 @@ public interface CaseStudyService {
 
     CaseStudyResponse getCaseById(Long id);
 
+    List<CaseStudyResponse> getRelatedCases(Long id);
+
     CaseStudyResponse publishCase(Long caseId);
+
+    CaseStudyResponse archiveCase(Long caseId);
 
     CaseStudyResponse updateCaseStatus(Long caseId, CaseStatus status);
 

@@ -54,13 +54,29 @@ function CourseOutcomesPage() {
   });
 
   const createCourseMutation = useMutation({
-    mutationFn: (payload) => caseService.createCourse(payload),
-    onSuccess: (newCourse) => {
+    mutationFn: ({ courseCode, courseName }) => caseService.createCourse(courseCode, courseName),
+    onSuccess: async (newCourse, variables) => {
       toast.success("Course created successfully");
-      queryClient.invalidateQueries({ queryKey: ["courses"] });
+      if (newCourse?.id) {
+        queryClient.setQueryData(["courses"], (previous = []) => {
+          const withoutDuplicate = previous.filter((course) => course.id !== newCourse.id);
+          return [...withoutDuplicate, newCourse];
+        });
+        setSelectedCourseId(String(newCourse.id));
+      }
+      await queryClient.refetchQueries({ queryKey: ["courses"], type: "all" });
+      if (!newCourse?.id) {
+        const refreshedCourses = queryClient.getQueryData(["courses"]) ?? [];
+        const matchedCourse = refreshedCourses.find(
+          (course) =>
+            course.courseCode === variables.courseCode && course.courseName === variables.courseName,
+        );
+        if (matchedCourse?.id) {
+          setSelectedCourseId(String(matchedCourse.id));
+        }
+      }
       setShowCourseModal(false);
       setCourseForm({ courseCode: "", courseName: "" });
-      setSelectedCourseId(String(newCourse.id));
     },
     onError: (error) => {
       toast.error(error?.response?.data?.message || "Failed to create course");

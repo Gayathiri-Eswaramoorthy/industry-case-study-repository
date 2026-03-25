@@ -10,7 +10,11 @@ import com.icr.backend.casestudy.enums.SubmissionType;
 import com.icr.backend.exception.GlobalExceptionHandler;
 import com.icr.backend.exception.ResourceNotFoundException;
 import com.icr.backend.security.JwtAuthenticationFilter;
+import com.icr.backend.casestudy.repository.CaseExhibitRepository;
+import com.icr.backend.casestudy.repository.CaseStudyRepository;
+import com.icr.backend.casestudy.repository.CaseTagRepository;
 import com.icr.backend.casestudy.service.CaseStudyService;
+import com.icr.backend.repository.UserRepository;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -51,6 +55,18 @@ class CaseStudyControllerTest {
 
     @MockitoBean
     private CaseStudyService caseStudyService;
+
+    @MockitoBean
+    private CaseStudyRepository caseStudyRepository;
+
+    @MockitoBean
+    private CaseExhibitRepository caseExhibitRepository;
+
+    @MockitoBean
+    private CaseTagRepository caseTagRepository;
+
+    @MockitoBean
+    private UserRepository userRepository;
 
     @MockitoBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;

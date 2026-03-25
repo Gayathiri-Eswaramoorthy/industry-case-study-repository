@@ -44,12 +44,28 @@ public class CaseStudyRequest {
     @NotNull(message = "Submission type is required")
     private SubmissionType submissionType;
     private String caseMaterialPath;
+    private String companyName;
+    private String realCompanyName;
+    private boolean isDisguised;
+    private String industry;
+    private String geographicRegion;
+    private String protagonistRole;
+    private Integer publicationYear;
+    private String sourceAttribution;
+    private String caseNarrative;
+    private String companyBackground;
+    private String industryContext;
+    private String decisionPoint;
     private String problemStatement;
     private String keyQuestions;
     private String evaluationRubric;
     private String constraints;
     private String expectedOutcome;
+    private String teachingNotesText;
     private String referenceLinks;
     private Integer estimatedHours;
+    private boolean groupSubmissionEnabled;
+    private Integer maxGroupSize;
+    private List<String> tags;
     private List<Long> coIds;
 }

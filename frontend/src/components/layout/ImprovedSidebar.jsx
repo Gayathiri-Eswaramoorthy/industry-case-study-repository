@@ -1,22 +1,24 @@
 import { useContext, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
+  Clock,
   BookOpen,
   BarChart3,
   Target,
-  GitMerge,
   GraduationCap,
   Users,
   ClipboardList,
   FileText,
-  RefreshCcw,
   TrendingUp,
+  Star,
   LogOut,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 import { AuthContext } from "../../context/AuthContext";
+import { getPendingFaculty, getPendingStudents } from "../../api/userService";
 
 function roleBadgeClass(role) {
   if (role === "ADMIN") {
@@ -38,18 +40,38 @@ function getInitialsFromEmail(email) {
   return (cleaned.slice(0, 2) || "US").toUpperCase();
 }
 
+function normalizeCount(data) {
+  if (Array.isArray(data)) return data.length;
+  if (Array.isArray(data?.data)) return data.data.length;
+  if (Array.isArray(data?.content)) return data.content.length;
+  return 0;
+}
+
 function ImprovedSidebar({ isCollapsed, onToggleCollapse }) {
   const { role, user, logout } = useContext(AuthContext);
+  const { data: pendingFaculty = [] } = useQuery({
+    queryKey: ["pending-faculty"],
+    queryFn: getPendingFaculty,
+    enabled: role === "ADMIN",
+    staleTime: 30000,
+  });
+  const { data: pendingStudents = [] } = useQuery({
+    queryKey: ["pending-students"],
+    queryFn: getPendingStudents,
+    enabled: role === "FACULTY",
+    staleTime: 30000,
+  });
+  const pendingFacultyCount = normalizeCount(pendingFaculty);
+  const pendingStudentsCount = normalizeCount(pendingStudents);
 
   const navigation = useMemo(() => {
     if (role === "ADMIN") {
       return [
         { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { to: "/admin/pending-faculty", label: "Pending Approvals", icon: Clock },
         { to: "/cases", label: "Case Studies", icon: BookOpen },
-        { to: "/analytics", label: "Analytics", icon: BarChart3 },
-        { to: "/admin/program-outcomes", label: "Program Outcomes", icon: Target },
-        { to: "/admin/course-outcomes", label: "CO Mapping", icon: GitMerge },
-        { to: "/admin/reeval-queue", label: "Re-eval Queue", icon: RefreshCcw },
+        { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
+        { to: "/admin/program-outcomes", label: "PO Mapping", icon: Target },
         { to: "/users", label: "Users", icon: Users },
       ];
     }
@@ -57,10 +79,12 @@ function ImprovedSidebar({ isCollapsed, onToggleCollapse }) {
     if (role === "FACULTY") {
       return [
         { to: "/faculty/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { to: "/faculty/pending-students", label: "Pending Students", icon: Clock },
         { to: "/cases", label: "Case Studies", icon: BookOpen },
         { to: "/faculty/analytics", label: "Analytics", icon: BarChart3 },
         { to: "/faculty/submissions", label: "Review Queue", icon: ClipboardList },
-        { to: "/faculty/course-outcomes", label: "Course Outcomes", icon: GraduationCap },
+        { to: "/faculty/peer-reviews", label: "Peer Reviews", icon: Star },
+        { to: "/faculty/course-outcomes", label: "CO Mapping", icon: GraduationCap },
       ];
     }
 
@@ -141,6 +165,20 @@ function ImprovedSidebar({ isCollapsed, onToggleCollapse }) {
                 >
                   {item.label}
                 </span>
+                {!isCollapsed &&
+                item.to === "/admin/pending-faculty" &&
+                pendingFacultyCount > 0 ? (
+                  <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                    {pendingFacultyCount}
+                  </span>
+                ) : null}
+                {!isCollapsed &&
+                item.to === "/faculty/pending-students" &&
+                pendingStudentsCount > 0 ? (
+                  <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                    {pendingStudentsCount}
+                  </span>
+                ) : null}
               </NavLink>
             );
           })}

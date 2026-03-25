@@ -1,5 +1,6 @@
 package com.icr.backend.course.entity;
 
+import com.icr.backend.entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -25,6 +26,10 @@ public class Course {
 
     @Column(name = "course_name", nullable = false)
     private String courseName;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by")
+    private User createdBy;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;

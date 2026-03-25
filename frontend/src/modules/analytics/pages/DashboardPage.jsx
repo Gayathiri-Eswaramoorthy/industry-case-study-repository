@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { Fragment, useContext, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Navigate } from "react-router-dom";
 import {
@@ -13,7 +13,7 @@ import {
   YAxis,
   CartesianGrid,
 } from "recharts";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import analyticsService from "../services/analyticsService";
 import { AuthContext } from "../../../context/AuthContext";
 import { exportCsv } from "../../../utils/exportCsv";
@@ -45,11 +45,11 @@ function chartTooltipStyle() {
   };
 }
 
-function averageBadgeClass(score) {
-  if (score >= 60) {
+function approvalRateBadgeClass(rate) {
+  if (rate >= 80) {
     return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/30 dark:text-emerald-300";
   }
-  if (score >= 40) {
+  if (rate >= 50) {
     return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-300";
   }
   return "border-red-200 bg-red-50 text-red-700 dark:border-red-500/40 dark:bg-red-950/30 dark:text-red-300";
@@ -61,15 +61,23 @@ function coBarColor(score) {
   return "#ef4444";
 }
 
+function hasValidFacultyId(value) {
+  if (value === null || value === undefined || value === "") {
+    return false;
+  }
+  return Number.isFinite(Number(value));
+}
+
 function DashboardPage() {
   const { role } = useContext(AuthContext);
+  const [expandedFacultyId, setExpandedFacultyId] = useState(null);
 
   const {
-    data: dashboardStats,
+    data: overallStats,
     isError: dashboardError,
   } = useQuery({
-    queryKey: ["analytics-dashboard"],
-    queryFn: () => analyticsService.getDashboardStats(),
+    queryKey: ["admin-overall-stats"],
+    queryFn: () => analyticsService.getOverallStats(),
     enabled: role === "ADMIN",
   });
 
@@ -114,13 +122,23 @@ function DashboardPage() {
   });
 
   const {
-    data: topCases = [],
-    isLoading: isLoadingTopCases,
-    isError: isTopCasesError,
+    data: facultyPerformance = [],
+    isLoading: isLoadingFacultyPerformance,
+    isError: isFacultyPerformanceError,
   } = useQuery({
-    queryKey: ["admin-top-cases"],
-    queryFn: () => analyticsService.getTopCases(),
+    queryKey: ["admin-faculty-performance"],
+    queryFn: () => analyticsService.getFacultyPerformance(),
     enabled: role === "ADMIN",
+  });
+
+  const {
+    data: facultyStudentsBreakdown,
+    isLoading: isLoadingFacultyStudentsBreakdown,
+    isError: isFacultyStudentsBreakdownError,
+  } = useQuery({
+    queryKey: ["admin-faculty-students-breakdown", expandedFacultyId],
+    queryFn: () => analyticsService.getFacultyStudentsBreakdown(expandedFacultyId),
+    enabled: role === "ADMIN" && hasValidFacultyId(expandedFacultyId),
   });
 
   if (role !== "ADMIN") {
@@ -173,12 +191,15 @@ function DashboardPage() {
   const handleExport = () => {
     const rows = [
       ["Dataset", "Metric", "Value"],
-      ["Dashboard", "Total Users", dashboardStats?.totalUsers ?? 0],
-      ["Dashboard", "Total Cases", dashboardStats?.totalCases ?? 0],
-      ["Dashboard", "Total Submissions", dashboardStats?.totalSubmissions ?? 0],
-      ["Dashboard", "Active Cases", dashboardStats?.activeCases ?? 0],
-      ["Dashboard", "Pending Reviews", dashboardStats?.pendingReviews ?? 0],
-      ["Dashboard", "Active Faculty", dashboardStats?.activeFaculty ?? 0],
+      ["Dashboard", "Total Users", overallStats?.totalUsers ?? 0],
+      ["Dashboard", "Total Faculty", overallStats?.totalFaculty ?? 0],
+      ["Dashboard", "Total Students", overallStats?.totalStudents ?? 0],
+      ["Dashboard", "Total Cases", overallStats?.totalCases ?? 0],
+      ["Dashboard", "Total Submissions", overallStats?.totalSubmissions ?? 0],
+      ["Dashboard", "Approved Students", overallStats?.approvedStudents ?? 0],
+      ["Dashboard", "Pending Students", overallStats?.pendingStudents ?? 0],
+      ["Dashboard", "Rejected Students", overallStats?.rejectedStudents ?? 0],
+      ["Dashboard", "Overall Approval Rate", `${overallStats?.overallApprovalRate ?? 0}%`],
       ["Cases", "Published", caseAnalytics?.publishedCases ?? 0],
       ["Cases", "Draft", caseAnalytics?.draftCases ?? 0],
       ["Cases", "Archived", caseAnalytics?.archivedCases ?? 0],
@@ -195,9 +216,9 @@ function DashboardPage() {
       rows.push(["CO Summary", co.coCode, co.averageScore]);
     });
 
-    rows.push(["Top Cases", "Case Title", "Average Score"]);
-    topCases.forEach((c) => {
-      rows.push(["Top Cases", c.caseTitle, c.averageScore]);
+    rows.push(["Faculty Performance", "Faculty", "Approval Rate"]);
+    facultyPerformance.forEach((item) => {
+      rows.push(["Faculty Performance", item.facultyName, item.totalSubmissions ?? 0]);
     });
 
     exportCsv("platform-analytics-report.csv", rows);
@@ -358,20 +379,20 @@ function DashboardPage() {
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <h2 className="mb-4 text-sm font-semibold text-slate-800 dark:text-slate-100">Top Performing Cases</h2>
-        {isLoadingTopCases ? (
+        <h2 className="mb-4 text-sm font-semibold text-slate-800 dark:text-slate-100">Faculty-wise Submission Performance</h2>
+        {isLoadingFacultyPerformance ? (
           <div className="space-y-2">
             {Array.from({ length: 5 }).map((_, idx) => (
               <div key={idx} className="h-10 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
             ))}
           </div>
-        ) : isTopCasesError ? (
+        ) : isFacultyPerformanceError ? (
           <div className="rounded border border-dashed border-red-300 px-4 py-5 text-sm text-red-600 dark:border-red-500/40 dark:text-red-300">
-            Unable to load top case analytics
+            Unable to load faculty performance analytics
           </div>
-        ) : topCases.length === 0 ? (
+        ) : facultyPerformance.length === 0 ? (
           <div className="rounded border border-dashed border-slate-300 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-            No evaluated submissions yet
+            No faculty-student mappings found
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -379,44 +400,126 @@ function DashboardPage() {
               <thead className="bg-slate-50 dark:bg-slate-800/50">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    Case Title
+                    Faculty
                   </th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    Submissions
+                    Total Students
                   </th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    Avg Score
+                    Total Submissions
                   </th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    Top Score
+                    Submitted
                   </th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    Attainment
+                    Under Review
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Re-eval
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Evaluated
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Approval Rate
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {topCases.map((item) => (
-                  <tr key={item.caseId} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                    <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">{item.caseTitle}</td>
-                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{item.submissionCount}</td>
-                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{item.averageScore}</td>
-                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{item.topScore}</td>
-                    <td className="px-3 py-2">
-                      <span
-                        className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${averageBadgeClass(
-                          Number(item.averageScore ?? 0)
-                        )}`}
+                {facultyPerformance.map((item, index) => {
+                  const isExpanded = expandedFacultyId === item.facultyId;
+                  return (
+                    <Fragment key={item.facultyId}>
+                      <tr
+                        className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                        onClick={() => setExpandedFacultyId(isExpanded ? null : item.facultyId)}
                       >
-                        {Number(item.averageScore ?? 0) >= 60
-                          ? "High"
-                          : Number(item.averageScore ?? 0) >= 40
-                            ? "Moderate"
-                            : "Low"}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                        <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">
+                          <div className="flex items-center gap-2">
+                            <ChevronRight
+                              className={`h-4 w-4 transition ${isExpanded ? "rotate-90" : ""}`}
+                            />
+                            <span>{item.facultyName || `Faculty #${item.facultyId}`}</span>
+                            {index === 0 && (
+                              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/30 dark:text-emerald-300">
+                                Top
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{item.totalStudents}</td>
+                        <td className="px-3 py-2 font-medium text-slate-700 dark:text-slate-200">{item.totalSubmissions ?? 0}</td>
+                        <td className="px-3 py-2 text-blue-700 dark:text-blue-300">{item.submitted ?? 0}</td>
+                        <td className="px-3 py-2 text-amber-700 dark:text-amber-300">{item.underReview ?? 0}</td>
+                        <td className="px-3 py-2 text-violet-700 dark:text-violet-300">{item.reevalRequested ?? 0}</td>
+                        <td className="px-3 py-2 text-emerald-700 dark:text-emerald-300">{item.evaluated ?? 0}</td>
+                        <td className="px-3 py-2">
+                          <span
+                            className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${approvalRateBadgeClass(
+                              Number(item.approvalRate ?? 0)
+                            )}`}
+                          >
+                            {Number(item.approvalRate ?? 0).toFixed(2)}%
+                          </span>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={8} className="bg-slate-50 px-4 py-3 dark:bg-slate-900/40">
+                            {isLoadingFacultyStudentsBreakdown ? (
+                              <div className="text-sm text-slate-500 dark:text-slate-400">Loading students...</div>
+                            ) : isFacultyStudentsBreakdownError ? (
+                              <div className="text-sm text-red-600 dark:text-red-300">Unable to load student breakdown.</div>
+                            ) : (
+                              <div className="grid gap-3 md:grid-cols-3">
+                                {[
+                                  {
+                                    key: "approved",
+                                    title: "Approved",
+                                    color: "text-emerald-700 dark:text-emerald-300",
+                                    items: facultyStudentsBreakdown?.approvedStudents ?? [],
+                                  },
+                                  {
+                                    key: "pending",
+                                    title: "Pending",
+                                    color: "text-amber-700 dark:text-amber-300",
+                                    items: facultyStudentsBreakdown?.pendingStudents ?? [],
+                                  },
+                                  {
+                                    key: "rejected",
+                                    title: "Rejected",
+                                    color: "text-red-700 dark:text-red-300",
+                                    items: facultyStudentsBreakdown?.rejectedStudents ?? [],
+                                  },
+                                ].map((group) => (
+                                  <div key={group.key} className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                                    <div className={`mb-2 text-xs font-semibold uppercase tracking-wide ${group.color}`}>
+                                      {group.title} ({group.items.length})
+                                    </div>
+                                    {group.items.length === 0 ? (
+                                      <div className="text-xs text-slate-500 dark:text-slate-400">No students</div>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        {group.items.map((student) => (
+                                          <div key={student.studentId} className="rounded border border-slate-100 p-2 text-xs dark:border-slate-800">
+                                            <div className="font-medium text-slate-700 dark:text-slate-200">{student.studentName}</div>
+                                            <div className="mt-1 text-slate-500 dark:text-slate-400">
+                                              Total: {student.totalSubmissions} | S:{student.submitted} UR:{student.underReview} RQ:{student.reevalRequested} E:{student.evaluated}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

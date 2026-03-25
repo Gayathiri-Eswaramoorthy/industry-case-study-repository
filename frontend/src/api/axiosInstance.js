@@ -9,6 +9,10 @@ const axiosInstance = axios.create({
 
 axiosInstance.interceptors.request.use(
   (config) => {
+    if (config.skipAuth) {
+      return config;
+    }
+
     const token = localStorage.getItem("token");
     const isAuthRoute = config.url?.includes("/auth/");
 

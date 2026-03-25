@@ -1,6 +1,6 @@
 package com.icr.backend.entity;
 
-import com.icr.backend.audit.BaseAuditEntity;
+import com.icr.backend.enums.UserStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -35,6 +35,32 @@ public class User extends BaseAuditEntity {
     @JoinColumn(name = "role_id")
     private Role role;
 
+    @Column
+    private String department;
+
+    @Column
+    private String specialization;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "requested_faculty_id")
+    private User requestedFaculty;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approved_by")
+    private User approvedBy;
+
+    @Column(name = "approved_at")
+    private java.time.LocalDateTime approvedAt;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @Builder.Default
+    private UserStatus status = UserStatus.APPROVED;
+
+    @Column(name = "rejection_reason")
+    private String rejectionReason;
+
+    @Column(nullable = false)
+    @Builder.Default
     private boolean deleted = false;
 }

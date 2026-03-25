@@ -1,19 +1,22 @@
 package com.icr.backend.casestudy.repository;
 
 import com.icr.backend.casestudy.entity.CaseStudy;
+import com.icr.backend.casestudy.enums.CaseCategory;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import com.icr.backend.enums.CaseStatus;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-public interface CaseStudyRepository extends JpaRepository<CaseStudy, Long> {
+public interface CaseStudyRepository extends JpaRepository<CaseStudy, Long>, JpaSpecificationExecutor<CaseStudy> {
 
     List<CaseStudy> findByCourseId(Long courseId);
 
@@ -40,8 +43,10 @@ public interface CaseStudyRepository extends JpaRepository<CaseStudy, Long> {
     @Query("""
             SELECT c
             FROM CaseStudy c
-            WHERE (c.status = com.icr.backend.enums.CaseStatus.PUBLISHED
-                OR (c.status = com.icr.backend.enums.CaseStatus.DRAFT AND c.createdBy.id = :facultyId))
+            WHERE (
+                c.status = com.icr.backend.enums.CaseStatus.PUBLISHED
+                OR (c.status = com.icr.backend.enums.CaseStatus.DRAFT AND c.createdBy.id = :facultyId)
+            )
               AND (:status IS NULL OR c.status = :status)
             """)
     Page<CaseStudy> findVisibleCasesForFaculty(
@@ -51,11 +56,81 @@ public interface CaseStudyRepository extends JpaRepository<CaseStudy, Long> {
     );
 
     @Query("""
+            SELECT COUNT(c.id)
+            FROM CaseStudy c
+            WHERE (
+                c.status = com.icr.backend.enums.CaseStatus.PUBLISHED
+                OR (c.status = com.icr.backend.enums.CaseStatus.DRAFT AND c.createdBy.id = :facultyId)
+            )
+            """)
+    long countVisibleCasesForFaculty(@Param("facultyId") Long facultyId);
+
+    @Query(value = """
+            SELECT c FROM CaseStudy c
+            LEFT JOIN CaseSubmission s ON s.caseId = c.id
+            GROUP BY c.id
+            ORDER BY COUNT(s.id) DESC
+            """,
+            countQuery = """
+            SELECT COUNT(c.id) FROM CaseStudy c
+            """)
+    Page<CaseStudy> findAllOrderBySubmissionCountDesc(Pageable pageable);
+
+    @Query(value = """
+            SELECT c FROM CaseStudy c
+            LEFT JOIN CaseSubmission s ON s.caseId = c.id
+            WHERE (
+                c.status = com.icr.backend.enums.CaseStatus.PUBLISHED
+                OR (c.status = com.icr.backend.enums.CaseStatus.DRAFT AND c.createdBy.id = :facultyId)
+            )
+            GROUP BY c.id
+            ORDER BY COUNT(s.id) DESC
+            """,
+            countQuery = """
+            SELECT COUNT(c.id) FROM CaseStudy c
+            WHERE (
+                c.status = com.icr.backend.enums.CaseStatus.PUBLISHED
+                OR (c.status = com.icr.backend.enums.CaseStatus.DRAFT AND c.createdBy.id = :facultyId)
+            )
+            """)
+    Page<CaseStudy> findVisibleCasesForFacultyOrderBySubmissionCountDesc(
+            @Param("facultyId") Long facultyId,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT DISTINCT c
+            FROM CaseStudy c
+            WHERE c.id <> :caseId
+              AND c.status = com.icr.backend.enums.CaseStatus.PUBLISHED
+              AND (
+                  (:category IS NOT NULL AND c.category = :category)
+                  OR (:industry IS NOT NULL AND c.industry = :industry)
+                  OR (:hasTags = true AND EXISTS (
+                      SELECT 1 FROM CaseTag ct
+                      WHERE ct.caseStudy.id = c.id
+                        AND ct.tag IN :tags
+                  ))
+              )
+            ORDER BY c.createdAt DESC
+            """)
+    List<CaseStudy> findRelatedCases(
+            @Param("caseId") Long caseId,
+            @Param("category") CaseCategory category,
+            @Param("industry") String industry,
+            @Param("hasTags") boolean hasTags,
+            @Param("tags") Collection<String> tags,
+            Pageable pageable
+    );
+
+    @Query("""
             SELECT c
             FROM CaseStudy c
             WHERE c.course.id = :courseId
-              AND (c.status = com.icr.backend.enums.CaseStatus.PUBLISHED
-                OR (c.status = com.icr.backend.enums.CaseStatus.DRAFT AND c.createdBy.id = :facultyId))
+              AND (
+                  c.status = com.icr.backend.enums.CaseStatus.PUBLISHED
+                  OR (c.status = com.icr.backend.enums.CaseStatus.DRAFT AND c.createdBy.id = :facultyId)
+              )
               AND (:status IS NULL OR c.status = :status)
             """)
     Page<CaseStudy> findVisibleCasesForFaculty(

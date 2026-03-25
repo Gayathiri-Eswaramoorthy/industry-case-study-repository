@@ -6,6 +6,7 @@ import caseService from "../../modules/caseStudy/services/caseService";
 function FacultyCourseOutcomesPage() {
   const queryClient = useQueryClient();
   const [selectedCourseId, setSelectedCourseId] = useState("");
+  const [courseForm, setCourseForm] = useState({ courseCode: "", courseName: "" });
   const [form, setForm] = useState({ code: "", description: "" });
 
   const { data: courses = [], isLoading: coursesLoading } = useQuery({
@@ -39,6 +40,35 @@ function FacultyCourseOutcomesPage() {
     },
   });
 
+  const createCourseMutation = useMutation({
+    mutationFn: ({ courseCode, courseName }) => caseService.createCourse(courseCode, courseName),
+    onSuccess: async (newCourse, variables) => {
+      toast.success("Course created successfully");
+      if (newCourse?.id) {
+        queryClient.setQueryData(["courses"], (previous = []) => {
+          const withoutDuplicate = previous.filter((course) => course.id !== newCourse.id);
+          return [...withoutDuplicate, newCourse];
+        });
+        setSelectedCourseId(String(newCourse.id));
+      }
+      await queryClient.refetchQueries({ queryKey: ["courses"], type: "all" });
+      if (!newCourse?.id) {
+        const refreshedCourses = queryClient.getQueryData(["courses"]) ?? [];
+        const matchedCourse = refreshedCourses.find(
+          (course) =>
+            course.courseCode === variables.courseCode && course.courseName === variables.courseName,
+        );
+        if (matchedCourse?.id) {
+          setSelectedCourseId(String(matchedCourse.id));
+        }
+      }
+      setCourseForm({ courseCode: "", courseName: "" });
+    },
+    onError: (error) => {
+      toast.error(error?.response?.data?.message || "Failed to create course");
+    },
+  });
+
   const handleCreate = (event) => {
     event.preventDefault();
     if (!selectedCourseId || !form.code.trim() || !form.description.trim()) {
@@ -53,6 +83,19 @@ function FacultyCourseOutcomesPage() {
     });
   };
 
+  const handleCreateCourse = (event) => {
+    event.preventDefault();
+    if (!courseForm.courseCode.trim() || !courseForm.courseName.trim()) {
+      toast.error("Course code and course name are required");
+      return;
+    }
+
+    createCourseMutation.mutate({
+      courseCode: courseForm.courseCode.trim(),
+      courseName: courseForm.courseName.trim(),
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -64,6 +107,37 @@ function FacultyCourseOutcomesPage() {
         </p>
       </div>
 
+      <form
+        onSubmit={handleCreateCourse}
+        className="grid gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:grid-cols-[160px_1fr_auto]"
+      >
+        <input
+          type="text"
+          value={courseForm.courseCode}
+          onChange={(event) =>
+            setCourseForm((prev) => ({ ...prev, courseCode: event.target.value }))
+          }
+          placeholder="Course Code"
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+        />
+        <input
+          type="text"
+          value={courseForm.courseName}
+          onChange={(event) =>
+            setCourseForm((prev) => ({ ...prev, courseName: event.target.value }))
+          }
+          placeholder="Course Name"
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+        />
+        <button
+          type="submit"
+          disabled={createCourseMutation.isPending}
+          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
+        >
+          {createCourseMutation.isPending ? "Creating..." : "Create Course"}
+        </button>
+      </form>
+
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
           Select Course
@@ -73,7 +147,10 @@ function FacultyCourseOutcomesPage() {
           onChange={(event) => setSelectedCourseId(event.target.value)}
           className="w-full max-w-sm rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
         >
-          {coursesLoading && <option>Loading courses...</option>}
+          {coursesLoading && <option value="">Loading courses...</option>}
+          {!coursesLoading && courses.length === 0 && (
+            <option value="">No courses available</option>
+          )}
           {!coursesLoading &&
             courses.map((course) => (
               <option key={course.id} value={course.id}>
@@ -81,6 +158,11 @@ function FacultyCourseOutcomesPage() {
               </option>
             ))}
         </select>
+        {!coursesLoading && courses.length === 0 && (
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            Create a course above to start adding course outcomes.
+          </p>
+        )}
       </div>
 
       <form
@@ -105,7 +187,7 @@ function FacultyCourseOutcomesPage() {
         />
         <button
           type="submit"
-          disabled={createMutation.isPending}
+          disabled={createMutation.isPending || !selectedCourseId}
           className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {createMutation.isPending ? "Saving..." : "Add CO"}

@@ -24,41 +24,39 @@ public class FacultyDashboardServiceImpl implements FacultyDashboardService {
 
     @Override
     public FacultyDashboardDTO getDashboardMetrics() {
-        try {
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth == null || !auth.isAuthenticated()) {
-                return new FacultyDashboardDTO(0, 0, 0, 0, 0);
-            }
-
-            String email = auth.getName();
-            if (email == null || email.isBlank() || "anonymousUser".equalsIgnoreCase(email)) {
-                return new FacultyDashboardDTO(0, 0, 0, 0, 0);
-            }
-
-            User faculty = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("Faculty not found"));
-
-            Long facultyId = faculty.getId();
-            long ownCases = caseStudyRepository.countByCreatedBy_Id(facultyId);
-            long publishedCases = caseStudyRepository.countByStatus(CaseStatus.PUBLISHED);
-            long totalVisibleCases = caseStudyRepository.countByStatusOrCreatedBy_IdAndStatus(
-                    CaseStatus.PUBLISHED,
-                    facultyId,
-                    CaseStatus.DRAFT
-            );
-            long pendingReviews = submissionRepository.countByStatus(SubmissionStatus.SUBMITTED);
-            long evaluatedSubmissions = submissionRepository.countByStatus(SubmissionStatus.EVALUATED);
-
-            return new FacultyDashboardDTO(
-                    totalVisibleCases,
-                    ownCases,
-                    pendingReviews,
-                    evaluatedSubmissions,
-                    publishedCases
-            );
-        } catch (Exception e) {
-            log.error("Error loading faculty dashboard", e);
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
             return new FacultyDashboardDTO(0, 0, 0, 0, 0);
         }
+
+        String email = auth.getName();
+        if (email == null || email.isBlank() || "anonymousUser".equalsIgnoreCase(email)) {
+            return new FacultyDashboardDTO(0, 0, 0, 0, 0);
+        }
+
+        User faculty = userRepository.findByEmailAndDeletedFalse(email)
+                .orElseGet(() -> userRepository.findByEmail(email).orElse(null));
+        if (faculty == null || faculty.getId() == null) {
+            log.warn("Faculty dashboard requested but user not found for email={}", email);
+            return new FacultyDashboardDTO(0, 0, 0, 0, 0);
+        }
+
+        Long facultyId = faculty.getId();
+
+        long ownCases = caseStudyRepository.countByCreatedBy_Id(facultyId);
+        long publishedCases = caseStudyRepository.countByStatus(CaseStatus.PUBLISHED);
+        long totalVisibleCases = caseStudyRepository.countVisibleCasesForFaculty(facultyId);
+        long pendingReviews = submissionRepository
+                .countByStudentFacultyIdAndStatus(facultyId, SubmissionStatus.SUBMITTED);
+        long evaluatedSubmissions = submissionRepository
+                .countByStudentFacultyIdAndStatus(facultyId, SubmissionStatus.EVALUATED);
+
+        return new FacultyDashboardDTO(
+                totalVisibleCases,
+                ownCases,
+                pendingReviews,
+                evaluatedSubmissions,
+                publishedCases
+        );
     }
 }

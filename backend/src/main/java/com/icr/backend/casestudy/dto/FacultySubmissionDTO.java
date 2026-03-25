@@ -49,4 +49,50 @@ public class FacultySubmissionDTO {
         this.submittedAt = submittedAt;
         this.status = status;
     }
+
+    public FacultySubmissionDTO(
+            Long submissionId,
+            Long caseId,
+            Long courseId,
+            String studentName,
+            String caseTitle,
+            String solutionText,
+            String executiveSummary,
+            String situationAnalysis,
+            String rootCauseAnalysis,
+            String proposedSolution,
+            String implementationPlan,
+            String risksAndConstraints,
+            String conclusion,
+            String githubLink,
+            String pdfFileName,
+            String pdfFilePath,
+            Integer selfRating,
+            Integer marksAwarded,
+            String facultyFeedback,
+            LocalDateTime submittedAt,
+            SubmissionStatus status
+    ) {
+        this.submissionId = submissionId;
+        this.caseId = caseId;
+        this.courseId = courseId;
+        this.studentName = studentName;
+        this.caseTitle = caseTitle;
+        this.solutionText = solutionText;
+        this.executiveSummary = executiveSummary;
+        this.situationAnalysis = situationAnalysis;
+        this.rootCauseAnalysis = rootCauseAnalysis;
+        this.proposedSolution = proposedSolution;
+        this.implementationPlan = implementationPlan;
+        this.risksAndConstraints = risksAndConstraints;
+        this.conclusion = conclusion;
+        this.githubLink = githubLink;
+        this.pdfFileName = pdfFileName;
+        this.pdfFilePath = pdfFilePath;
+        this.selfRating = selfRating;
+        this.marksAwarded = marksAwarded;
+        this.facultyFeedback = facultyFeedback;
+        this.submittedAt = submittedAt;
+        this.status = status;
+    }
 }

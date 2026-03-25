@@ -16,13 +16,21 @@ import {
   Clock3,
   Percent,
 } from "lucide-react";
-import { getFacultyAnalytics } from "../../services/facultyService";
+import { getAssignedStudents, getFacultyAnalytics } from "../../services/facultyService";
 import KpiCard from "../../components/KpiCard";
 
 export default function FacultyAnalytics() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["faculty-analytics"],
     queryFn: getFacultyAnalytics,
+  });
+  const {
+    data: assignedStudents = [],
+    isLoading: isLoadingStudents,
+    isError: isStudentsError,
+  } = useQuery({
+    queryKey: ["faculty-assigned-students"],
+    queryFn: getAssignedStudents,
   });
 
   const safeData = {
@@ -41,6 +49,21 @@ export default function FacultyAnalytics() {
   ];
 
   const pieColors = ["#10b981", "#f59e0b"];
+  const approvedStudents = assignedStudents.filter((s) => s?.status === "APPROVED");
+  const pendingStudents = assignedStudents.filter(
+    (s) => s?.status === "PENDING" || s?.status === "PENDING_FACULTY_APPROVAL"
+  );
+  const rejectedStudents = assignedStudents.filter((s) => s?.status === "REJECTED");
+
+  const statusBadgeClass = (status) => {
+    if (status === "APPROVED") {
+      return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/30 dark:text-emerald-300";
+    }
+    if (status === "REJECTED") {
+      return "border-red-200 bg-red-50 text-red-700 dark:border-red-500/40 dark:bg-red-950/30 dark:text-red-300";
+    }
+    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-300";
+  };
 
   return (
     <div className="space-y-8">
@@ -52,6 +75,79 @@ export default function FacultyAnalytics() {
           Submission and evaluation insights across your cases.
         </p>
       </div>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <h2 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
+          Assigned Students
+        </h2>
+        <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+          Students mapped to you, grouped by approval status.
+        </p>
+
+        {isStudentsError && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/30 dark:bg-red-950/30 dark:text-red-300">
+            Unable to load assigned students.
+          </div>
+        )}
+
+        <div className="mb-4 flex flex-wrap gap-2">
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+            Total: {assignedStudents.length}
+          </span>
+          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/30 dark:text-emerald-300">
+            Approved: {approvedStudents.length}
+          </span>
+          <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-300">
+            Pending: {pendingStudents.length}
+          </span>
+          <span className="rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 dark:border-red-500/40 dark:bg-red-950/30 dark:text-red-300">
+            Rejected: {rejectedStudents.length}
+          </span>
+        </div>
+
+        {isLoadingStudents ? (
+          <div className="space-y-2">
+            {Array.from({ length: 5 }).map((_, idx) => (
+              <div key={idx} className="h-10 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+            ))}
+          </div>
+        ) : assignedStudents.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-slate-300 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+            No students are assigned to you yet.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-800/50">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Student
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Email
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {assignedStudents.map((student) => (
+                  <tr key={student.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">{student.fullName}</td>
+                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{student.email}</td>
+                    <td className="px-3 py-2">
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusBadgeClass(student.status)}`}>
+                        {student.status === "PENDING_FACULTY_APPROVAL" ? "PENDING" : student.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       {isError && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-950/30 dark:text-red-300">

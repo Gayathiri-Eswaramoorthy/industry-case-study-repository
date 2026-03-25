@@ -2,6 +2,7 @@ import { useContext, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
+  ArrowRight,
   BarChart3,
   ClipboardCheck,
   FolderKanban,
@@ -24,26 +25,42 @@ import KpiCard from "../../components/KpiCard";
 import { AuthContext } from "../../context/AuthContext";
 import { getFacultyDashboard } from "../../services/facultyDashboardService";
 import caseService from "../../modules/caseStudy/services/caseService";
-import facultySubmissionService from "../../services/facultySubmissionService";
+import { getPendingStudents } from "../../api/userService";
 
 function FacultyDashboard() {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["faculty-dashboard"],
+    queryKey: ["faculty-dashboard", user?.id || user?.email || "faculty"],
     queryFn: getFacultyDashboard,
+    enabled: !!user,
+    refetchOnMount: "always",
   });
 
-  const { data: caseData, isLoading: isLoadingCases } = useQuery({
-    queryKey: ["faculty-cases-dashboard"],
+  const {
+    data: caseData,
+    isLoading: isLoadingCases,
+    isError: isCasesError,
+  } = useQuery({
+    queryKey: ["faculty-cases-dashboard", user?.id || user?.email || "faculty"],
     queryFn: () => caseService.getAllCases({ page: 0, size: 5 }),
+    enabled: !!user,
+    refetchOnMount: "always",
   });
 
-  const { data: submissions = [] } = useQuery({
-    queryKey: ["faculty-submissions"],
-    queryFn: () => facultySubmissionService.getFacultySubmissions(),
+  const {
+    data: pendingStudents = [],
+    isError: isPendingStudentsError,
+  } = useQuery({
+    queryKey: ["pending-students", user?.id || user?.email || "faculty"],
+    queryFn: getPendingStudents,
+    enabled: !!user,
+    staleTime: 30000,
+    refetchOnMount: "always",
   });
+
+  const pendingStudentsCount = Array.isArray(pendingStudents) ? pendingStudents.length : 0;
 
   const stats = {
     totalCases: data?.totalCases ?? 0,
@@ -59,23 +76,8 @@ function FacultyDashboard() {
 
   const myCases = useMemo(() => {
     const items = caseData?.content || caseData || [];
-
-    const submissionCounts = (Array.isArray(submissions) ? submissions : []).reduce(
-      (accumulator, submission) => {
-        if (submission?.caseId == null) {
-          return accumulator;
-        }
-        accumulator[submission.caseId] = (accumulator[submission.caseId] ?? 0) + 1;
-        return accumulator;
-      },
-      {}
-    );
-
-    return items.slice(0, 5).map((item) => ({
-      ...item,
-      submissionCount: submissionCounts[item.id] ?? 0,
-    }));
-  }, [caseData, submissions]);
+    return items.slice(0, 5);
+  }, [caseData]);
 
   if (isError) {
     return (
@@ -102,6 +104,26 @@ function FacultyDashboard() {
           </span>
         </div>
       </section>
+
+      {isPendingStudentsError && (
+        <div className="rounded-xl border border-red-200 border-l-4 border-l-red-400 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-500/40 dark:border-l-red-400 dark:bg-red-950/30 dark:text-red-200">
+          Unable to load student requests right now. Please refresh.
+        </div>
+      )}
+
+      {pendingStudentsCount > 0 && (
+        <div className="flex items-center justify-between rounded-xl border border-amber-200 border-l-4 border-l-amber-400 bg-amber-50 px-4 py-3 dark:border-amber-500/40 dark:border-l-amber-400 dark:bg-amber-950/30">
+          <p className="text-sm text-amber-800 dark:text-amber-200">
+            {pendingStudentsCount} student{pendingStudentsCount === 1 ? "" : "s"} waiting for your approval
+          </p>
+          <button
+            onClick={() => navigate("/faculty/pending-students")}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 hover:underline dark:text-amber-200"
+          >
+            Review Now <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
         {isLoading ? (
@@ -207,6 +229,10 @@ function FacultyDashboard() {
               <div key={index} className="h-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
             ))}
           </div>
+        ) : isCasesError ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-8 text-center text-sm text-red-700 dark:border-red-500/30 dark:bg-red-950/30 dark:text-red-300">
+            Failed to load visible cases.
+          </div>
         ) : myCases.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
             No visible cases yet.
@@ -248,6 +274,7 @@ function FacultyDashboard() {
           </div>
         )}
       </div>
+
     </div>
   );
 }

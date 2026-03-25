@@ -13,5 +13,12 @@ public class UserResponse {
     private String fullName;
     private String email;
     private String role;
+    private String status;
+    private String department;
+    private String specialization;
+    private Long requestedFacultyId;
+    private String requestedFacultyName;
+    private String requestedFacultyEmail;
+    private String rejectionReason;
     private LocalDateTime createdAt;
 }

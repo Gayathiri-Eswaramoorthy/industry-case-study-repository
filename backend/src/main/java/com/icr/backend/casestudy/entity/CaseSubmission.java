@@ -28,6 +28,15 @@ public class CaseSubmission {
     @Column(name = "student_id", nullable = false)
     private Long studentId;
 
+    @Column(name = "group_id")
+    private Long groupId;
+
+    @Column(name = "evaluating_faculty_id")
+    private Long evaluatingFacultyId;
+
+    @Column(name = "evaluated_by_faculty_id")
+    private Long evaluatedByFacultyId;
+
     @Column(columnDefinition = "TEXT", nullable = true)
     private String solutionText;
 

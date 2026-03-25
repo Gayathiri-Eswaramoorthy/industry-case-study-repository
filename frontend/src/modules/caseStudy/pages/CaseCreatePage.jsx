@@ -4,6 +4,7 @@ import { toast } from "react-hot-toast";
 import { Lock, Plus, Trash2 } from "lucide-react";
 import caseService from "../services/caseService";
 import { AuthContext } from "../../../context/AuthContext";
+import TagInput from "../../../components/TagInput";
 
 function CaseCreatePage() {
   const { role } = useContext(AuthContext);
@@ -16,13 +17,31 @@ function CaseCreatePage() {
   const [maxMarks, setMaxMarks] = useState("");
   const [category, setCategory] = useState("PRODUCT");
   const [submissionType, setSubmissionType] = useState("TEXT");
+  const [groupSubmissionEnabled, setGroupSubmissionEnabled] = useState(false);
+  const [maxGroupSize, setMaxGroupSize] = useState("");
   const [caseMaterial, setCaseMaterial] = useState(null);
+  const [caseDocument, setCaseDocument] = useState(null);
+  const [companyName, setCompanyName] = useState("");
+  const [realCompanyName, setRealCompanyName] = useState("");
+  const [isDisguised, setIsDisguised] = useState(false);
+  const [industry, setIndustry] = useState("");
+  const [geographicRegion, setGeographicRegion] = useState("");
+  const [protagonistRole, setProtagonistRole] = useState("");
+  const [publicationYear, setPublicationYear] = useState("");
+  const [sourceAttribution, setSourceAttribution] = useState("");
+  const [caseNarrative, setCaseNarrative] = useState("");
+  const [companyBackground, setCompanyBackground] = useState("");
+  const [industryContext, setIndustryContext] = useState("");
+  const [decisionPoint, setDecisionPoint] = useState("");
+  const [teachingNotesText, setTeachingNotesText] = useState("");
+  const [teachingNotesPdf, setTeachingNotesPdf] = useState(null);
   const [problemStatement, setProblemStatement] = useState("");
   const [keyQuestions, setKeyQuestions] = useState([""]);
   const [constraints, setConstraints] = useState("");
   const [evaluationRubric, setEvaluationRubric] = useState("");
   const [expectedOutcome, setExpectedOutcome] = useState("");
   const [referenceLinks, setReferenceLinks] = useState("");
+  const [tags, setTags] = useState([]);
   const [estimatedHours, setEstimatedHours] = useState("");
   const [courseId, setCourseId] = useState("");
   const [courses, setCourses] = useState([]);
@@ -157,7 +176,7 @@ function CaseCreatePage() {
     setLoading(true);
 
     try {
-      await caseService.createCase({
+      const createdCase = await caseService.createCase({
         title: title.trim(),
         description: description.trim(),
         difficulty,
@@ -165,18 +184,51 @@ function CaseCreatePage() {
         maxMarks: parsedMaxMarks,
         category,
         submissionType,
+        groupSubmissionEnabled,
+        maxGroupSize: groupSubmissionEnabled && maxGroupSize ? Number(maxGroupSize) : null,
         caseMaterial,
         courseId: Number(courseId),
+        companyName: companyName.trim() || null,
+        realCompanyName: realCompanyName.trim() || null,
+        isDisguised,
+        industry: industry.trim() || null,
+        geographicRegion: geographicRegion.trim() || null,
+        protagonistRole: protagonistRole.trim() || null,
+        publicationYear: publicationYear ? Number(publicationYear) : null,
+        sourceAttribution: sourceAttribution.trim() || null,
+        caseNarrative: caseNarrative.trim() || null,
+        companyBackground: companyBackground.trim() || null,
+        industryContext: industryContext.trim() || null,
+        decisionPoint: decisionPoint.trim() || null,
+        teachingNotesText: teachingNotesText.trim() || null,
         problemStatement: problemStatement.trim() || null,
         keyQuestions: parsedKeyQuestions,
         constraints: constraints.trim() || null,
         evaluationRubric: evaluationRubric.trim() || null,
         expectedOutcome: expectedOutcome.trim() || null,
         referenceLinks: referenceLinks.trim() || null,
+        tags,
         estimatedHours:
           estimatedHours && Number(estimatedHours) > 0 ? Number(estimatedHours) : null,
         coIds: coIds.length > 0 ? coIds : [],
       });
+
+      if (caseDocument && createdCase?.id) {
+        try {
+          await caseService.uploadCaseDocument(createdCase.id, caseDocument);
+        } catch (err) {
+          console.error("Failed to upload case document:", err);
+          toast.error("Case created but document upload failed. You can re-upload from the edit page.");
+        }
+      }
+
+      if (teachingNotesPdf && createdCase?.id) {
+        try {
+          await caseService.uploadTeachingNotes(createdCase.id, teachingNotesPdf);
+        } catch (err) {
+          toast.error("Case created but teaching notes PDF upload failed.");
+        }
+      }
 
       toast.success("Case created successfully.");
       navigate("/cases");
@@ -290,6 +342,215 @@ function CaseCreatePage() {
                 </div>
               </div>
             </section>
+
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <h2 className="mb-4 text-base font-semibold text-slate-800 dark:text-slate-100">
+                Case Metadata
+              </h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Company Name
+                  </label>
+                  <input
+                    type="text"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="e.g. Acme Corp"
+                    className={inputClass}
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="isDisguised"
+                    checked={isDisguised}
+                    onChange={(e) => setIsDisguised(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300"
+                  />
+                  <label
+                    htmlFor="isDisguised"
+                    className="text-sm font-medium text-slate-700 dark:text-slate-200"
+                  >
+                    Company name is disguised
+                  </label>
+                </div>
+                {isDisguised && (
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                      Real Company Name (faculty only)
+                    </label>
+                    <input
+                      type="text"
+                      value={realCompanyName}
+                      onChange={(e) => setRealCompanyName(e.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Industry
+                  </label>
+                  <input
+                    type="text"
+                    value={industry}
+                    onChange={(e) => setIndustry(e.target.value)}
+                    placeholder="e.g. E-commerce, Healthcare"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Geographic Region
+                  </label>
+                  <input
+                    type="text"
+                    value={geographicRegion}
+                    onChange={(e) => setGeographicRegion(e.target.value)}
+                    placeholder="e.g. Southeast Asia, India"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Protagonist Role
+                  </label>
+                  <input
+                    type="text"
+                    value={protagonistRole}
+                    onChange={(e) => setProtagonistRole(e.target.value)}
+                    placeholder="e.g. Chief Marketing Officer"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Publication Year
+                  </label>
+                  <input
+                    type="number"
+                    value={publicationYear}
+                    onChange={(e) => setPublicationYear(e.target.value)}
+                    placeholder="e.g. 2024"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Source Attribution
+                  </label>
+                  <input
+                    type="text"
+                    value={sourceAttribution}
+                    onChange={(e) => setSourceAttribution(e.target.value)}
+                    placeholder="e.g. Harvard Business Review, 2024"
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <h2 className="mb-4 text-base font-semibold text-slate-800 dark:text-slate-100">
+                Case Content
+              </h2>
+              <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+                Use these fields if you are not uploading a PDF. Leave blank if a PDF document is attached.
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Company Background
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={companyBackground}
+                    onChange={(e) => setCompanyBackground(e.target.value)}
+                    placeholder="Brief history and context of the company..."
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Industry Context
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={industryContext}
+                    onChange={(e) => setIndustryContext(e.target.value)}
+                    placeholder="Market conditions, competitive landscape..."
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Decision Point
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={decisionPoint}
+                    onChange={(e) => setDecisionPoint(e.target.value)}
+                    placeholder="The key decision the protagonist must make..."
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Case Narrative
+                  </label>
+                  <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">
+                    Full case text. Only needed if not uploading a PDF.
+                  </p>
+                  <textarea
+                    rows={10}
+                    value={caseNarrative}
+                    onChange={(e) => setCaseNarrative(e.target.value)}
+                    placeholder="Write the full case narrative here..."
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm dark:border-amber-500/30 dark:bg-amber-950/20">
+              <div className="mb-3 flex items-center gap-2">
+                <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">
+                  Teaching Notes
+                </h2>
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                  Faculty Only - Hidden from students
+                </span>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Teaching Notes Text
+                  </label>
+                  <textarea
+                    rows={5}
+                    value={teachingNotesText}
+                    onChange={(e) => setTeachingNotesText(e.target.value)}
+                    placeholder="Discussion guide, suggested answers, grading hints..."
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Teaching Notes PDF (optional)
+                  </label>
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    onChange={(e) => setTeachingNotesPdf(e.target.files?.[0] ?? null)}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+                  />
+                  {teachingNotesPdf && (
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{teachingNotesPdf.name}</p>
+                  )}
+                </div>
+              </div>
+            </section>
           </div>
 
           <div className="space-y-6">
@@ -354,6 +615,39 @@ function CaseCreatePage() {
                   </select>
                 </div>
 
+                <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                  <label className="flex items-center gap-3 text-sm font-medium text-slate-700 dark:text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={groupSubmissionEnabled}
+                      onChange={(e) => {
+                        setGroupSubmissionEnabled(e.target.checked);
+                        if (!e.target.checked) {
+                          setMaxGroupSize("");
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-slate-300"
+                    />
+                    Allow Group Submissions
+                  </label>
+                  {groupSubmissionEnabled && (
+                    <div className="mt-3">
+                      <label htmlFor="maxGroupSize" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                        Max Group Size
+                      </label>
+                      <input
+                        id="maxGroupSize"
+                        type="number"
+                        min="2"
+                        value={maxGroupSize}
+                        onChange={(e) => setMaxGroupSize(e.target.value)}
+                        placeholder="No limit"
+                        className={inputClass}
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label htmlFor="dueDate" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Due Date</label>
                   <input id="dueDate" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={inputClass} />
@@ -375,6 +669,14 @@ function CaseCreatePage() {
                 </div>
 
                 <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Tags <span className="text-slate-400">(max 10)</span>
+                  </label>
+                  <TagInput tags={tags} onChange={setTags} />
+                  <p className="mt-1 text-xs text-slate-400">Press Enter or comma to add a tag</p>
+                </div>
+
+                <div>
                   <label htmlFor="caseMaterial" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Case Material (Optional)</label>
                   <input
                     id="caseMaterial"
@@ -383,6 +685,24 @@ function CaseCreatePage() {
                     onChange={(e) => setCaseMaterial(e.target.files?.[0] ?? null)}
                     className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                   />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Case Document (PDF)
+                  </label>
+                  <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">
+                    The main PDF that students will read and download.
+                  </p>
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    onChange={(e) => setCaseDocument(e.target.files?.[0] ?? null)}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+                  />
+                  {caseDocument && (
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{caseDocument.name}</p>
+                  )}
                 </div>
               </div>
             </section>

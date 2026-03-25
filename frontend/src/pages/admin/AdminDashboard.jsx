@@ -15,9 +15,9 @@ import {
   Activity,
   ArrowRight,
 } from "lucide-react";
-import axiosInstance from "../../api/axiosInstance";
 import analyticsService from "../../modules/analytics/services/analyticsService";
 import activityService from "../../modules/analytics/services/activityService";
+import { getPendingFaculty } from "../../api/userService";
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -53,95 +53,64 @@ function formatRelativeTime(timestamp) {
 
 function getActivityIcon(message) {
   const normalizedMessage = String(message || "").toLowerCase();
-
-  if (normalizedMessage.includes("created")) {
-    return <PlusCircle className="h-4 w-4 text-blue-500" />;
-  }
-  if (normalizedMessage.includes("published")) {
-    return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
-  }
-  if (normalizedMessage.includes("registered")) {
-    return <UserPlus className="h-4 w-4 text-violet-500" />;
-  }
-  if (normalizedMessage.includes("submission")) {
-    return <FileText className="h-4 w-4 text-amber-500" />;
-  }
-
+  if (normalizedMessage.includes("created")) return <PlusCircle className="h-4 w-4 text-blue-500" />;
+  if (normalizedMessage.includes("published")) return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
+  if (normalizedMessage.includes("registered")) return <UserPlus className="h-4 w-4 text-violet-500" />;
+  if (normalizedMessage.includes("submission")) return <FileText className="h-4 w-4 text-amber-500" />;
   return <Activity className="h-4 w-4 text-slate-400" />;
 }
 
 function AdminDashboard() {
   const navigate = useNavigate();
 
-  const {
-    data: dashboardData,
-    isLoading: isLoadingDashboard,
-    isError: dashboardError,
-  } = useQuery({
+  const { data: dashboardData, isLoading: isLoadingDashboard, isError: dashboardError } = useQuery({
     queryKey: ["admin-dashboard-metrics"],
     queryFn: () => analyticsService.getDashboardStats(),
   });
 
-  const {
-    data: userAnalytics,
-    isLoading: isLoadingUsers,
-    isError: userError,
-  } = useQuery({
+  const { data: userAnalytics, isLoading: isLoadingUsers, isError: userError } = useQuery({
     queryKey: ["admin-user-analytics"],
     queryFn: () => analyticsService.getUserAnalytics(),
   });
 
-  const {
-    data: submissionAnalytics,
-    isLoading: isLoadingSubmissions,
-    isError: submissionError,
-  } = useQuery({
+  const { data: submissionAnalytics, isLoading: isLoadingSubmissions, isError: submissionError } = useQuery({
     queryKey: ["admin-submission-analytics"],
     queryFn: () => analyticsService.getSubmissionAnalytics(),
   });
 
-  const {
-    data: caseAnalytics,
-    isLoading: isLoadingCaseAnalytics,
-    isError: caseError,
-  } = useQuery({
+  const { data: caseAnalytics, isLoading: isLoadingCaseAnalytics, isError: caseError } = useQuery({
     queryKey: ["admin-case-analytics"],
     queryFn: () => analyticsService.getCaseAnalytics(),
   });
 
-  const {
-    data: reevalRequests = [],
-    isLoading: isLoadingReevalRequests,
-  } = useQuery({
-    queryKey: ["reeval-requests"],
-    queryFn: async () => {
-      const response = await axiosInstance.get("/admin/submissions/reeval-pending");
-      return Array.isArray(response.data) ? response.data : [];
-    },
+  const { data: pendingFaculty = [] } = useQuery({
+    queryKey: ["pending-faculty"],
+    queryFn: getPendingFaculty,
+    staleTime: 30000,
   });
 
-  const {
-    data: activities = [],
-    isLoading: isLoadingActivities,
-    isError: activityError,
-  } = useQuery({
+  const { data: activities = [], isLoading: isLoadingActivities, isError: activityError } = useQuery({
     queryKey: ["activity-feed", "ADMIN", null, 6],
     queryFn: () => activityService.getAdminActivity(6),
     staleTime: 60 * 1000,
   });
 
-  const isLoading =
-    isLoadingDashboard || isLoadingUsers || isLoadingSubmissions || isLoadingCaseAnalytics || isLoadingReevalRequests;
+  const isLoading = isLoadingDashboard || isLoadingUsers || isLoadingSubmissions || isLoadingCaseAnalytics;
   const isError = dashboardError || userError || submissionError || caseError;
-  const reevalCount = reevalRequests.length;
+  const pendingFacultyCount = Array.isArray(pendingFaculty)
+    ? pendingFaculty.length
+    : Array.isArray(pendingFaculty?.data)
+      ? pendingFaculty.data.length
+      : Array.isArray(pendingFaculty?.content)
+        ? pendingFaculty.content.length
+        : 0;
 
   const metrics = {
     totalUsers: dashboardData?.totalUsers ?? userAnalytics?.totalUsers ?? 0,
     totalCases: dashboardData?.totalCases ?? 0,
     draftCases: Number(caseAnalytics?.draftCases ?? 0),
     pendingReviews: dashboardData?.pendingReviews ?? 0,
-    totalSubmissions:
-      dashboardData?.totalSubmissions ?? submissionAnalytics?.totalSubmissions ?? 0,
+    totalSubmissions: dashboardData?.totalSubmissions ?? submissionAnalytics?.totalSubmissions ?? 0,
   };
 
   const kpiCards = [
@@ -172,11 +141,29 @@ function AdminDashboard() {
       iconBox: "bg-violet-50 dark:bg-violet-950/40",
       to: "/cases",
     },
+    {
+      key: "pending-faculty",
+      label: "Pending Faculty",
+      value: pendingFacultyCount,
+      subtitle: "Applications awaiting review",
+      icon: <Clock className="h-5 w-5 text-violet-600 dark:text-violet-300" />,
+      iconBox: "bg-violet-50 dark:bg-violet-950/40",
+      to: "/admin/pending-faculty",
+    },
   ];
 
   const attentionItems = useMemo(() => {
     const items = [];
-
+    if (pendingFacultyCount > 0) {
+      items.push({
+        key: "pending-faculty",
+        text: `${pendingFacultyCount} faculty application${pendingFacultyCount === 1 ? "" : "s"} pending your approval`,
+        to: "/admin/pending-faculty",
+        linkText: "Review Now",
+        style:
+          "border-violet-200 border-l-4 border-l-violet-400 bg-violet-50 text-violet-800 dark:border-violet-500/40 dark:border-l-violet-400 dark:bg-violet-950/30 dark:text-violet-200",
+      });
+    }
     if (metrics.pendingReviews > 0) {
       items.push({
         key: "pending-reviews",
@@ -187,7 +174,6 @@ function AdminDashboard() {
           "border-amber-200 border-l-4 border-l-amber-400 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:border-l-amber-400 dark:bg-amber-950/30 dark:text-amber-200",
       });
     }
-
     if (metrics.draftCases > 0) {
       items.push({
         key: "draft-cases",
@@ -198,20 +184,8 @@ function AdminDashboard() {
           "border-blue-200 border-l-4 border-l-blue-400 bg-blue-50 text-blue-800 dark:border-blue-500/40 dark:border-l-blue-400 dark:bg-blue-950/30 dark:text-blue-200",
       });
     }
-
-    if (reevalCount > 0) {
-      items.push({
-        key: "reeval-requests",
-        text: `${reevalCount} re-evaluation requests pending`,
-        to: "/admin/reeval-queue",
-        linkText: "Open Queue",
-        style:
-          "border-indigo-200 border-l-4 border-l-indigo-400 bg-indigo-50 text-indigo-800 dark:border-indigo-500/40 dark:border-l-indigo-400 dark:bg-indigo-950/30 dark:text-indigo-200",
-      });
-    }
-
     return items;
-  }, [metrics.draftCases, metrics.pendingReviews, reevalCount]);
+  }, [metrics.draftCases, metrics.pendingReviews, pendingFacultyCount]);
 
   const quickActions = [
     {
@@ -234,7 +208,7 @@ function AdminDashboard() {
       key: "view-analytics",
       title: "View Analytics",
       description: "Inspect platform trends",
-      to: "/analytics",
+      to: "/admin/analytics",
       icon: <BarChart3 className="h-4 w-4 text-violet-600 dark:text-violet-300" />,
       iconBox: "bg-violet-50 dark:bg-violet-950/40",
     },
@@ -251,12 +225,8 @@ function AdminDashboard() {
   return (
     <div className="space-y-8">
       <section className="rounded-xl bg-gradient-to-r from-slate-50 to-white p-6 md:p-8 dark:from-slate-900 dark:to-slate-900/70">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-          {getGreeting()}, Admin
-        </h1>
-        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-          Here&apos;s what needs your attention today. - {formatDate()}
-        </p>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{getGreeting()}, Admin</h1>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Here&apos;s what needs your attention today. - {formatDate()}</p>
       </section>
 
       {isError && (
@@ -265,13 +235,10 @@ function AdminDashboard() {
         </div>
       )}
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-4">
         {isLoading
-          ? Array.from({ length: 3 }).map((_, index) => (
-              <div
-                key={index}
-                className="h-40 animate-pulse rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-              />
+          ? Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="h-40 animate-pulse rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900" />
             ))
           : kpiCards.map((card) => (
               <button
@@ -281,12 +248,8 @@ function AdminDashboard() {
                 className="cursor-pointer rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition-all hover:border-slate-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-600"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${card.iconBox}`}>
-                    {card.icon}
-                  </div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    {card.label}
-                  </p>
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${card.iconBox}`}>{card.icon}</div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{card.label}</p>
                 </div>
                 <p className="mt-4 text-3xl font-bold text-slate-900 dark:text-slate-100">{card.value}</p>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{card.subtitle}</p>
@@ -299,26 +262,17 @@ function AdminDashboard() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Needs Attention
-        </h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Needs Attention</h2>
         {attentionItems.length === 0 ? (
           <div className="rounded-lg border border-emerald-200 border-l-4 border-l-emerald-400 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-500/40 dark:border-l-emerald-400 dark:bg-emerald-950/30 dark:text-emerald-200">
-            ✓ Everything is up to date
+            Everything is up to date
           </div>
         ) : (
           <div className="space-y-2">
             {attentionItems.map((item) => (
-              <div
-                key={item.key}
-                className={`flex items-center justify-between rounded-lg px-4 py-3 text-sm ${item.style}`}
-              >
+              <div key={item.key} className={`flex items-center justify-between rounded-lg px-4 py-3 text-sm ${item.style}`}>
                 <span>{item.text}</span>
-                <button
-                  type="button"
-                  onClick={() => navigate(item.to)}
-                  className="inline-flex items-center gap-1 text-xs font-semibold"
-                >
+                <button type="button" onClick={() => navigate(item.to)} className="inline-flex items-center gap-1 text-xs font-semibold">
                   <span>{item.linkText}</span>
                   <ArrowRight className="h-3.5 w-3.5" />
                 </button>
@@ -331,15 +285,9 @@ function AdminDashboard() {
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              Recent Activity
-            </h2>
-            <button
-              type="button"
-              onClick={() => navigate("/analytics")}
-              className="text-xs font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
-            >
-              View all →
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Recent Activity</h2>
+            <button type="button" onClick={() => navigate("/admin/analytics")} className="text-xs font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100">
+              View all -&gt;
             </button>
           </div>
 
@@ -351,14 +299,8 @@ function AdminDashboard() {
             </div>
           )}
 
-          {!isLoadingActivities && activityError && (
-            <p className="text-sm text-red-600 dark:text-red-400">Unable to load recent activity.</p>
-          )}
-
-          {!isLoadingActivities && !activityError && activities.length === 0 && (
-            <p className="text-sm text-slate-500 dark:text-slate-400">No recent activity yet.</p>
-          )}
-
+          {!isLoadingActivities && activityError && <p className="text-sm text-red-600 dark:text-red-400">Unable to load recent activity.</p>}
+          {!isLoadingActivities && !activityError && activities.length === 0 && <p className="text-sm text-slate-500 dark:text-slate-400">No recent activity yet.</p>}
           {!isLoadingActivities && !activityError && activities.length > 0 && (
             <div className="divide-y divide-slate-100 dark:divide-slate-800">
               {activities.slice(0, 6).map((item) => (
@@ -366,9 +308,7 @@ function AdminDashboard() {
                   <span className="mt-0.5">{getActivityIcon(item.message)}</span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-slate-700 dark:text-slate-200">{item.message}</p>
-                    <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-                      {formatRelativeTime(item.timestamp)}
-                    </p>
+                    <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{formatRelativeTime(item.timestamp)}</p>
                   </div>
                 </div>
               ))}
@@ -377,9 +317,7 @@ function AdminDashboard() {
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Quick Actions
-          </h2>
+          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Quick Actions</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {quickActions.map((action) => (
               <button
@@ -388,9 +326,7 @@ function AdminDashboard() {
                 onClick={() => navigate(action.to)}
                 className="cursor-pointer rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:bg-slate-50 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
               >
-                <div className={`mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full ${action.iconBox}`}>
-                  {action.icon}
-                </div>
+                <div className={`mb-3 inline-flex h-8 w-8 items-center justify-center rounded-full ${action.iconBox}`}>{action.icon}</div>
                 <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{action.title}</p>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{action.description}</p>
               </button>

@@ -136,6 +136,58 @@ public class CaseSubmissionController {
         return caseSubmissionService.getCoScores(id);
     }
 
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('FACULTY','STUDENT','ADMIN')")
+    @Operation(summary = "Get submission by id")
+    public CaseSubmissionResponse getSubmissionById(@PathVariable Long id) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new ResourceNotFoundException("Submission not found");
+        }
+
+        User currentUser = userRepository.findByEmail(auth.getName())
+                .orElseThrow(() -> new ResourceNotFoundException("Submission not found"));
+        CaseSubmission submission = caseSubmissionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Submission not found"));
+
+        boolean isAdmin = currentUser.getRole() != null && currentUser.getRole().getName() == com.icr.backend.enums.RoleType.ADMIN;
+        boolean isStudentOwner = currentUser.getRole() != null
+                && currentUser.getRole().getName() == com.icr.backend.enums.RoleType.STUDENT
+                && submission.getStudentId() != null
+                && submission.getStudentId().equals(currentUser.getId());
+        boolean isEvaluator = currentUser.getRole() != null
+                && currentUser.getRole().getName() == com.icr.backend.enums.RoleType.FACULTY
+                && submission.getEvaluatingFacultyId() != null
+                && submission.getEvaluatingFacultyId().equals(currentUser.getId());
+
+        if (!isAdmin && !isStudentOwner && !isEvaluator) {
+            throw new ResourceNotFoundException("Submission not found");
+        }
+
+        return CaseSubmissionResponse.builder()
+                .id(submission.getId())
+                .caseId(submission.getCaseId())
+                .studentId(submission.getStudentId())
+                .solutionText(submission.getSolutionText())
+                .executiveSummary(submission.getExecutiveSummary())
+                .situationAnalysis(submission.getSituationAnalysis())
+                .rootCauseAnalysis(submission.getRootCauseAnalysis())
+                .proposedSolution(submission.getProposedSolution())
+                .implementationPlan(submission.getImplementationPlan())
+                .risksAndConstraints(submission.getRisksAndConstraints())
+                .conclusion(submission.getConclusion())
+                .githubLink(submission.getGithubLink())
+                .pdfFileName(submission.getPdfFileName())
+                .pdfFilePath(submission.getPdfFilePath())
+                .selfRating(submission.getSelfRating())
+                .marksAwarded(submission.getMarksAwarded())
+                .facultyFeedback(submission.getFacultyFeedback())
+                .status(submission.getStatus())
+                .submittedAt(submission.getSubmittedAt())
+                .evaluatedAt(submission.getEvaluatedAt())
+                .build();
+    }
+
     @PostMapping("/{id}/request-reeval")
     @PreAuthorize("hasRole('STUDENT')")
     @Transactional

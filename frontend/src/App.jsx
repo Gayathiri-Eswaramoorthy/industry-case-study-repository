@@ -1,6 +1,9 @@
 import { useContext } from "react";
 import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import Login from "./pages/Login";
+import StudentSignup from "./pages/StudentSignup";
+import FacultySignup from "./pages/FacultySignup";
+import RegistrationPending from "./pages/RegistrationPending";
 import Users from "./pages/Users";
 import CaseListPage from "./modules/caseStudy/pages/CaseListPage";
 import CaseDetailsPage from "./modules/caseStudy/pages/CaseDetailsPage";
@@ -13,10 +16,12 @@ import Layout from "./components/layout/Layout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ProgramOutcomesPage from "./pages/admin/ProgramOutcomesPage";
 import CourseOutcomesPage from "./pages/admin/CourseOutcomesPage";
-import ReevalQueuePage from "./pages/admin/ReevalQueuePage";
+import PendingFacultyPage from "./pages/admin/PendingFacultyPage";
 import FacultyDashboard from "./pages/faculty/FacultyDashboard";
 import FacultyAnalytics from "./pages/faculty/FacultyAnalytics";
 import FacultyCourseOutcomesPage from "./pages/faculty/FacultyCourseOutcomesPage";
+import PendingStudentsPage from "./pages/faculty/PendingStudentsPage";
+import PeerReviewsPage from "./pages/faculty/PeerReviewsPage";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import CoAttainment from "./pages/student/CoAttainment";
 import PoAttainment from "./pages/student/PoAttainment";
@@ -47,6 +52,9 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Login />} />
+        <Route path="/signup/student" element={<StudentSignup />} />
+        <Route path="/signup/faculty" element={<FacultySignup />} />
+        <Route path="/registration-pending" element={<RegistrationPending />} />
 
         <Route
           path="/"
@@ -58,12 +66,14 @@ function App() {
         >
           <Route path="dashboard" element={<RoleDashboardRedirect />} />
           <Route path="admin/dashboard" element={<AdminDashboard />} />
+          <Route path="admin/pending-faculty" element={<PendingFacultyPage />} />
           <Route path="admin/program-outcomes" element={<ProgramOutcomesPage />} />
           <Route path="admin/course-outcomes" element={<CourseOutcomesPage />} />
-          <Route path="admin/reeval-queue" element={<ReevalQueuePage />} />
           <Route path="faculty/dashboard" element={<FacultyDashboard />} />
+          <Route path="faculty/pending-students" element={<PendingStudentsPage />} />
           <Route path="faculty/analytics" element={<FacultyAnalytics />} />
           <Route path="faculty/course-outcomes" element={<FacultyCourseOutcomesPage />} />
+          <Route path="faculty/peer-reviews" element={<PeerReviewsPage />} />
           <Route path="faculty/submissions" element={<FacultySubmissions />} />
           <Route
             path="faculty/submissions/:id"
@@ -87,7 +97,8 @@ function App() {
           <Route path="cases/new" element={<CaseCreatePage />} />
           <Route path="cases/:caseId/edit" element={<CaseEditPage />} />
           <Route path="cases/:caseId/submit" element={<SubmitSolutionPage />} />
-          <Route path="analytics" element={<DashboardPage />} />
+          <Route path="admin/analytics" element={<DashboardPage />} />
+          <Route path="analytics" element={<Navigate to="/admin/analytics" replace />} />
           <Route path="admin/users" element={<Users />} />
           <Route path="users" element={<Users />} />
           <Route path="*" element={<NotFound />} />

@@ -30,4 +30,6 @@ public abstract class BaseAuditEntity {
 
     @LastModifiedBy
     private String updatedBy;
+
+    private LocalDateTime deletedAt;
 }

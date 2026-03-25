@@ -1,6 +1,7 @@
 package com.icr.backend.service.impl;
 
 import com.icr.backend.casestudy.entity.CaseStudy;
+import com.icr.backend.casestudy.entity.CaseSubmission;
 import com.icr.backend.casestudy.enums.SubmissionStatus;
 import com.icr.backend.casestudy.repository.CaseSubmissionRepository;
 import com.icr.backend.casestudy.repository.CaseStudyRepository;
@@ -16,6 +17,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.Comparator;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -42,36 +47,40 @@ public class FacultyAnalyticsServiceImpl implements FacultyAnalyticsService {
             User faculty = userRepository.findByEmail(email)
                     .orElseThrow(() -> new RuntimeException("Faculty not found"));
 
-            List<Long> facultyCaseIds = caseStudyRepository.findByCreatedBy_Id(faculty.getId())
-                    .stream()
-                    .map(CaseStudy::getId)
-                    .toList();
-
-            if (facultyCaseIds.isEmpty()) {
+            List<CaseSubmission> submissions = submissionRepository.findAllByStudentFacultyId(faculty.getId());
+            if (submissions.isEmpty()) {
                 return new FacultyAnalyticsDTO(0, 0, 0, 0, List.of());
             }
 
-            long total = submissionRepository.countByCaseIdInAndStatusIn(
-                    facultyCaseIds,
-                    List.of(
-                            SubmissionStatus.SUBMITTED,
-                            SubmissionStatus.UNDER_REVIEW,
-                            SubmissionStatus.EVALUATED
-                    )
-            );
+            long total = submissions.size();
+            long evaluated = submissions.stream()
+                    .filter(s -> s.getStatus() == SubmissionStatus.EVALUATED)
+                    .count();
+            long pending = submissions.stream()
+                    .filter(s -> s.getStatus() == SubmissionStatus.SUBMITTED
+                            || s.getStatus() == SubmissionStatus.UNDER_REVIEW
+                            || s.getStatus() == SubmissionStatus.REEVAL_REQUESTED)
+                    .count();
 
-            long evaluated = submissionRepository.countByCaseIdInAndStatus(
-                    facultyCaseIds,
-                    SubmissionStatus.EVALUATED
-            );
+            Set<Long> caseIds = submissions.stream()
+                    .map(CaseSubmission::getCaseId)
+                    .filter(id -> id != null)
+                    .collect(Collectors.toSet());
 
-            long pending = submissionRepository.countByCaseIdInAndStatus(
-                    facultyCaseIds,
-                    SubmissionStatus.SUBMITTED
-            );
+            Map<Long, String> caseTitleById = caseStudyRepository.findAllById(caseIds).stream()
+                    .collect(Collectors.toMap(CaseStudy::getId, CaseStudy::getTitle));
 
-            List<FacultyCaseSubmissionCountDTO> submissionsPerCase =
-                    submissionRepository.findSubmissionCountsPerCase(faculty.getId());
+            List<FacultyCaseSubmissionCountDTO> submissionsPerCase = submissions.stream()
+                    .filter(s -> s.getCaseId() != null)
+                    .collect(Collectors.groupingBy(CaseSubmission::getCaseId, Collectors.counting()))
+                    .entrySet()
+                    .stream()
+                    .map(entry -> new FacultyCaseSubmissionCountDTO(
+                            caseTitleById.getOrDefault(entry.getKey(), "Case #" + entry.getKey()),
+                            entry.getValue()
+                    ))
+                    .sorted(Comparator.comparing(FacultyCaseSubmissionCountDTO::getCaseTitle, String.CASE_INSENSITIVE_ORDER))
+                    .toList();
 
             double completionRate = total == 0 ? 0 : (evaluated * 100.0) / total;
 

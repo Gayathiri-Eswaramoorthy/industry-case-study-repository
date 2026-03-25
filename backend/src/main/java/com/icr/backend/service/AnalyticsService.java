@@ -1,6 +1,9 @@
 package com.icr.backend.service;
 
 import com.icr.backend.dto.DashboardStatsResponse;
+import com.icr.backend.dto.FacultyPerformanceDTO;
+import com.icr.backend.dto.FacultyStudentsBreakdownDTO;
+import com.icr.backend.dto.OverallStatsDTO;
 import com.icr.backend.dto.CoAttainmentSummaryDTO;
 import com.icr.backend.dto.TopCaseAnalyticsDTO;
 
@@ -20,4 +23,10 @@ public interface AnalyticsService {
     List<CoAttainmentSummaryDTO> getCoAttainmentSummary();
 
     List<TopCaseAnalyticsDTO> getTopCases();
+
+    List<FacultyPerformanceDTO> getFacultyPerformance();
+
+    FacultyStudentsBreakdownDTO getFacultyStudentsBreakdown(Long facultyId);
+
+    OverallStatsDTO getOverallStats();
 }

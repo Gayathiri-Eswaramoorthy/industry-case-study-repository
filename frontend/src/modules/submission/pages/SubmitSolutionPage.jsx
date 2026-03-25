@@ -82,6 +82,8 @@ function SubmitSolutionPage() {
   const [pdfFile, setPdfFile] = useState(null);
   const [selfRating, setSelfRating] = useState(5);
   const [showReferencePanel, setShowReferencePanel] = useState(true);
+  const [myGroup, setMyGroup] = useState(null);
+  const [groupLoading, setGroupLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -125,6 +127,27 @@ function SubmitSolutionPage() {
 
     logStarted();
   }, [role, caseId]);
+
+  useEffect(() => {
+    const loadMyGroup = async () => {
+      if (!caseId || role !== "STUDENT" || !caseData?.groupSubmissionEnabled) {
+        setMyGroup(null);
+        return;
+      }
+
+      try {
+        setGroupLoading(true);
+        const group = await caseService.getMyGroup(caseId);
+        setMyGroup(group);
+      } catch {
+        setMyGroup(null);
+      } finally {
+        setGroupLoading(false);
+      }
+    };
+
+    loadMyGroup();
+  }, [caseId, role, caseData?.groupSubmissionEnabled]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -350,6 +373,18 @@ function SubmitSolutionPage() {
                 )}
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {caseData?.groupSubmissionEnabled && (
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800 dark:border-indigo-500/30 dark:bg-indigo-950/30 dark:text-indigo-200">
+          {groupLoading ? (
+            "Checking group..."
+          ) : myGroup?.groupName ? (
+            <>Submitting as group: <strong>{myGroup.groupName}</strong></>
+          ) : (
+            "This case uses group submission. You must be in an approved group to submit."
           )}
         </div>
       )}

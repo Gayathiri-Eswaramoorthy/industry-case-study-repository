@@ -2,10 +2,12 @@ import { useContext, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { toast } from "react-hot-toast";
-import { FolderOpen, PlusCircle, Search } from "lucide-react";
+import { FolderOpen, PlusCircle, Search, SlidersHorizontal } from "lucide-react";
 import caseService from "../services/caseService";
 import { AuthContext } from "../../../context/AuthContext";
-import StatusBadge from "../../../components/StatusBadge";
+import CaseGridView from "../components/CaseGridView";
+import CaseListView from "../components/CaseListView";
+import ViewToggle from "../components/ViewToggle";
 
 const DEFAULT_CATEGORY_PILLS = [
   "PRODUCT",
@@ -33,6 +35,8 @@ const CATEGORY_LABELS = {
   STRATEGY: "Strategy",
 };
 
+const VIEW_MODE_STORAGE_KEY = "case-study-view-mode";
+
 function normalizeCategory(category) {
   if (!category) return "UNCATEGORIZED";
   return String(category).trim().toUpperCase().replace(/\s+/g, "_");
@@ -50,9 +54,11 @@ function getCategoryTheme(category) {
     return {
       cardAccent: "border-l-rose-500 dark:border-l-rose-400",
       cardAccentHover: "group-hover:border-l-rose-600 dark:group-hover:border-l-rose-300",
-      thumbnail: "from-rose-200 via-orange-100 to-amber-100 dark:from-rose-900/50 dark:via-orange-900/40 dark:to-amber-900/40",
+      thumbnail:
+        "from-rose-200 via-orange-100 to-amber-100 dark:from-rose-900/50 dark:via-orange-900/40 dark:to-amber-900/40",
       pill: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-200",
-      pillActive: "border-rose-500 bg-rose-600 text-white dark:border-rose-300 dark:bg-rose-400 dark:text-slate-900",
+      pillActive:
+        "border-rose-500 bg-rose-600 text-white dark:border-rose-300 dark:bg-rose-400 dark:text-slate-900",
     };
   }
 
@@ -60,9 +66,11 @@ function getCategoryTheme(category) {
     return {
       cardAccent: "border-l-emerald-500 dark:border-l-emerald-400",
       cardAccentHover: "group-hover:border-l-emerald-600 dark:group-hover:border-l-emerald-300",
-      thumbnail: "from-emerald-200 via-green-100 to-teal-100 dark:from-emerald-900/50 dark:via-green-900/40 dark:to-teal-900/40",
+      thumbnail:
+        "from-emerald-200 via-green-100 to-teal-100 dark:from-emerald-900/50 dark:via-green-900/40 dark:to-teal-900/40",
       pill: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-200",
-      pillActive: "border-emerald-500 bg-emerald-600 text-white dark:border-emerald-300 dark:bg-emerald-400 dark:text-slate-900",
+      pillActive:
+        "border-emerald-500 bg-emerald-600 text-white dark:border-emerald-300 dark:bg-emerald-400 dark:text-slate-900",
     };
   }
 
@@ -70,9 +78,11 @@ function getCategoryTheme(category) {
     return {
       cardAccent: "border-l-blue-500 dark:border-l-blue-400",
       cardAccentHover: "group-hover:border-l-blue-600 dark:group-hover:border-l-blue-300",
-      thumbnail: "from-blue-200 via-cyan-100 to-sky-100 dark:from-blue-900/50 dark:via-cyan-900/40 dark:to-sky-900/40",
+      thumbnail:
+        "from-blue-200 via-cyan-100 to-sky-100 dark:from-blue-900/50 dark:via-cyan-900/40 dark:to-sky-900/40",
       pill: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/40 dark:bg-blue-950/40 dark:text-blue-200",
-      pillActive: "border-blue-500 bg-blue-600 text-white dark:border-blue-300 dark:bg-blue-400 dark:text-slate-900",
+      pillActive:
+        "border-blue-500 bg-blue-600 text-white dark:border-blue-300 dark:bg-blue-400 dark:text-slate-900",
     };
   }
 
@@ -80,52 +90,134 @@ function getCategoryTheme(category) {
     return {
       cardAccent: "border-l-amber-500 dark:border-l-amber-400",
       cardAccentHover: "group-hover:border-l-amber-600 dark:group-hover:border-l-amber-300",
-      thumbnail: "from-amber-200 via-yellow-100 to-orange-100 dark:from-amber-900/50 dark:via-yellow-900/40 dark:to-orange-900/40",
+      thumbnail:
+        "from-amber-200 via-yellow-100 to-orange-100 dark:from-amber-900/50 dark:via-yellow-900/40 dark:to-orange-900/40",
       pill: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200",
-      pillActive: "border-amber-500 bg-amber-600 text-white dark:border-amber-300 dark:bg-amber-400 dark:text-slate-900",
+      pillActive:
+        "border-amber-500 bg-amber-600 text-white dark:border-amber-300 dark:bg-amber-400 dark:text-slate-900",
     };
   }
 
   return {
     cardAccent: "border-l-slate-500 dark:border-l-slate-400",
     cardAccentHover: "group-hover:border-l-slate-600 dark:group-hover:border-l-slate-300",
-    thumbnail: "from-slate-200 via-slate-100 to-zinc-100 dark:from-slate-800 dark:via-slate-900 dark:to-zinc-900",
+    thumbnail:
+      "from-slate-200 via-slate-100 to-zinc-100 dark:from-slate-800 dark:via-slate-900 dark:to-zinc-900",
     pill: "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200",
-    pillActive: "border-slate-500 bg-slate-700 text-white dark:border-slate-300 dark:bg-slate-300 dark:text-slate-900",
+    pillActive:
+      "border-slate-500 bg-slate-700 text-white dark:border-slate-300 dark:bg-slate-300 dark:text-slate-900",
   };
 }
 
 function CaseListPage({ courseId }) {
-  const { role } = useContext(AuthContext);
+  const { role, user } = useContext(AuthContext);
   const queryClient = useQueryClient();
+
   const [page, setPage] = useState(0);
   const [size] = useState(10);
   const [statusFilter, setStatusFilter] = useState(() =>
-    role === "ADMIN" ? "ALL" : "PUBLISHED"
+    role === "STUDENT" ? "PUBLISHED" : "ALL"
   );
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [difficultyFilter, setDifficultyFilter] = useState("ALL");
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [minYear, setMinYear] = useState("");
+  const [maxYear, setMaxYear] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [tagFilter, setTagFilter] = useState([]);
+  const [preferredView, setPreferredView] = useState(() => {
+    const saved = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+    return saved === "grid" || saved === "list" ? saved : "";
+  });
 
   useEffect(() => {
-    setStatusFilter(role === "ADMIN" ? "ALL" : "PUBLISHED");
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 400);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    setStatusFilter(role === "STUDENT" ? "PUBLISHED" : "ALL");
     setPage(0);
   }, [role]);
 
-  const statusParam = useMemo(() => {
-    const baseStatus = statusFilter === "ALL" ? undefined : statusFilter;
-    return role === "STUDENT" ? "PUBLISHED" : baseStatus;
-  }, [role, statusFilter]);
-
   useEffect(() => {
     setPage(0);
-  }, [courseId, statusParam, searchTerm, categoryFilter]);
+  }, [
+    debouncedSearch,
+    statusFilter,
+    categoryFilter,
+    difficultyFilter,
+    tagFilter,
+    minYear,
+    maxYear,
+    sortBy,
+  ]);
+
+  const isSearchActive = Boolean(
+    debouncedSearch ||
+      categoryFilter !== "ALL" ||
+      difficultyFilter !== "ALL" ||
+      tagFilter.length > 0 ||
+      minYear ||
+      maxYear
+  );
+  const hasQuery = Boolean(debouncedSearch && debouncedSearch.trim());
+  const activeView = hasQuery ? "list" : preferredView || "grid";
 
   const {
-    data: allCasesData,
+    data: searchData,
     isLoading: loading,
     isError,
   } = useQuery({
-    queryKey: ["cases", courseId, role, "visible"],
+    queryKey: [
+      "cases-search",
+      courseId,
+      role,
+      debouncedSearch,
+      statusFilter,
+      categoryFilter,
+      difficultyFilter,
+      tagFilter,
+      minYear,
+      maxYear,
+      sortBy,
+      page,
+      size,
+    ],
+    queryFn: () => {
+      if (isSearchActive || sortBy !== "createdAt") {
+        return caseService.searchCases({
+          q: debouncedSearch,
+          status: role === "STUDENT" ? "PUBLISHED" : statusFilter === "ALL" ? undefined : statusFilter,
+          category: categoryFilter !== "ALL" ? categoryFilter : undefined,
+          difficulty: difficultyFilter !== "ALL" ? difficultyFilter : undefined,
+          tags: tagFilter.length > 0 ? tagFilter : undefined,
+          minYear: minYear || undefined,
+          maxYear: maxYear || undefined,
+          page,
+          size,
+          sort: sortBy,
+        });
+      }
+
+      return caseService.getAllCases({
+        courseId,
+        status: role === "STUDENT" ? "PUBLISHED" : statusFilter === "ALL" ? undefined : statusFilter,
+        page,
+        size,
+      });
+    },
+  });
+
+  const { data: allTags = [] } = useQuery({
+    queryKey: ["all-tags"],
+    queryFn: () => caseService.getAllTags(),
+  });
+
+  const { data: countsData } = useQuery({
+    queryKey: ["cases-counts", courseId, role],
     queryFn: () =>
       caseService.getAllCases({
         courseId,
@@ -135,11 +227,10 @@ function CaseListPage({ courseId }) {
       }),
   });
 
-  const allCases = allCasesData?.content || allCasesData || [];
-
+  const countSource = countsData?.content || countsData || [];
   const caseCounts = useMemo(
     () =>
-      allCases.reduce(
+      countSource.reduce(
         (counts, item) => {
           const normalizedStatus = normalizeStatus(item.status);
           if (normalizedStatus === "PUBLISHED") counts.published += 1;
@@ -149,60 +240,25 @@ function CaseListPage({ courseId }) {
         },
         { total: 0, published: 0, draft: 0 }
       ),
-    [allCases]
+    [countSource]
   );
 
-  const statusScopedCases = useMemo(() => {
-    if (role === "STUDENT") {
-      return allCases.filter((item) => normalizeStatus(item.status) === "PUBLISHED");
-    }
-
-    if (statusFilter === "ALL") {
-      return allCases;
-    }
-
-    return allCases.filter((item) => normalizeStatus(item.status) === statusFilter);
-  }, [allCases, role, statusFilter]);
+  const paginatedCases = searchData?.content ?? [];
+  const totalPages = searchData?.totalPages ?? 0;
+  const totalElements = searchData?.totalElements ?? 0;
+  const hasCases = paginatedCases.length > 0;
 
   const categoryPills = useMemo(() => {
-    const dynamic = statusScopedCases
-      .map((item) => normalizeCategory(item.category))
-      .filter(Boolean);
-    return [
-      "ALL",
-      ...Array.from(new Set([...DEFAULT_CATEGORY_PILLS, ...dynamic])),
-    ];
-  }, [statusScopedCases]);
-
-  const handlePublish = async (caseId) => {
-    const confirmed = window.confirm("Are you sure you want to publish this case?");
-    if (!confirmed) return;
-    try {
-      await caseService.publishCase(caseId);
-      queryClient.invalidateQueries({ queryKey: ["cases", courseId] });
-      toast.success("Case published successfully.");
-    } catch (err) {
-      console.error("Error publishing case:", err);
-      toast.error("Unable to publish case. Please try again.");
-    }
-  };
-
-  const filteredCases = statusScopedCases.filter((item) => {
-    const titleMatch = item.title?.toLowerCase().includes(searchTerm.toLowerCase());
-    const categoryMatch =
-      categoryFilter === "ALL" || normalizeCategory(item.category) === categoryFilter;
-    return titleMatch && categoryMatch;
-  });
-
-  const paginatedCases = filteredCases.slice(page * size, page * size + size);
-  const totalPages = Math.ceil(filteredCases.length / size);
-
-  const canEditCase = () => role === "FACULTY" || role === "ADMIN";
-  const hasCases = filteredCases.length > 0;
+    const dynamic = paginatedCases.map((item) => normalizeCategory(item.category)).filter(Boolean);
+    return ["ALL", ...Array.from(new Set([...DEFAULT_CATEGORY_PILLS, ...dynamic]))];
+  }, [paginatedCases]);
 
   const tabs =
-    role === "FACULTY"
+    role === "STUDENT"
+      ? []
+      : role === "FACULTY"
       ? [
+          { label: "All", value: "ALL", count: caseCounts.total },
           { label: "Published", value: "PUBLISHED", count: caseCounts.published },
           { label: "Draft", value: "DRAFT", count: caseCounts.draft },
         ]
@@ -211,6 +267,34 @@ function CaseListPage({ courseId }) {
           { label: "Published", value: "PUBLISHED", count: caseCounts.published },
           { label: "Draft", value: "DRAFT", count: caseCounts.draft },
         ];
+
+  const activeFilterCount = [
+    difficultyFilter !== "ALL",
+    tagFilter.length > 0,
+    minYear,
+    maxYear,
+  ].filter(Boolean).length;
+
+  const canEditCase = () => role === "FACULTY" || role === "ADMIN";
+
+  const handlePublish = async (caseId) => {
+    const confirmed = window.confirm("Are you sure you want to publish this case?");
+    if (!confirmed) return;
+    try {
+      await caseService.publishCase(caseId);
+      queryClient.invalidateQueries({ queryKey: ["cases-search"] });
+      queryClient.invalidateQueries({ queryKey: ["cases-counts"] });
+      toast.success("Case published successfully.");
+    } catch (err) {
+      console.error("Error publishing case:", err);
+      toast.error("Unable to publish case. Please try again.");
+    }
+  };
+
+  const handleViewChange = (view) => {
+    setPreferredView(view);
+    localStorage.setItem(VIEW_MODE_STORAGE_KEY, view);
+  };
 
   return (
     <div className="space-y-8 overflow-x-hidden">
@@ -236,16 +320,31 @@ function CaseListPage({ courseId }) {
             )}
           </div>
 
-          <div className="mx-auto w-full max-w-2xl">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search cases by title..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-12 pr-4 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-400/30 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-500/30"
-              />
+          <div className="mx-auto w-full max-w-4xl">
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search cases by title or description..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-12 pr-4 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-400/30 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-slate-400 dark:focus:ring-slate-500/30"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFilters((prev) => !prev)}
+                className="relative inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                Filters
+                {activeFilterCount > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white dark:bg-slate-100 dark:text-slate-900">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -282,6 +381,97 @@ function CaseListPage({ courseId }) {
       )}
 
       <section className="space-y-5">
+        {showFilters && (
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Difficulty</label>
+                <div className="flex flex-wrap gap-2">
+                  {["ALL", "EASY", "MEDIUM", "HARD"].map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setDifficultyFilter(d)}
+                      className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                        difficultyFilter === d
+                          ? "border-slate-800 bg-slate-900 text-white dark:border-slate-200 dark:bg-slate-100 dark:text-slate-900"
+                          : "border-slate-300 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                      }`}
+                    >
+                      {d === "ALL" ? "Any" : d.charAt(0) + d.slice(1).toLowerCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Sort By</label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-1 focus:ring-slate-500 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+                >
+                  <option value="createdAt">Newest First</option>
+                  <option value="title">Title A-Z</option>
+                  <option value="submissionCount">Most Submissions</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Year Range</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    placeholder="From"
+                    value={minYear}
+                    onChange={(e) => setMinYear(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-1 focus:ring-slate-500 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+                  />
+                  <span className="text-slate-400">-</span>
+                  <input
+                    type="number"
+                    placeholder="To"
+                    value={maxYear}
+                    onChange={(e) => setMaxYear(e.target.value)}
+                    className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:ring-1 focus:ring-slate-500 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-end">
+                {activeFilterCount > 0 && (
+                  <button
+                    onClick={() => {
+                      setDifficultyFilter("ALL");
+                      setTagFilter([]);
+                      setMinYear("");
+                      setMaxYear("");
+                      setSortBy("createdAt");
+                    }}
+                    className="text-sm font-medium text-slate-500 underline underline-offset-2 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
+                  >
+                    Clear all filters
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!loading && (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {hasQuery ? (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Showing {totalElements} result{totalElements !== 1 ? "s" : ""} for "{debouncedSearch}"
+              </p>
+            ) : (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {totalElements} result{totalElements !== 1 ? "s" : ""}
+              </p>
+            )}
+            <ViewToggle value={activeView} onChange={handleViewChange} />
+          </div>
+        )}
+
         <div className="overflow-hidden">
           <div className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-2">
             {categoryPills.map((category) => {
@@ -302,6 +492,39 @@ function CaseListPage({ courseId }) {
             })}
           </div>
         </div>
+
+        {allTags.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {allTags.map((tag) => {
+              const active = tagFilter.includes(tag);
+              return (
+                <button
+                  key={tag}
+                  onClick={() =>
+                    setTagFilter((prev) =>
+                      active ? prev.filter((t) => t !== tag) : [...prev, tag]
+                    )
+                  }
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                    active
+                      ? "border-slate-800 bg-slate-900 text-white dark:border-slate-200 dark:bg-slate-100 dark:text-slate-900"
+                      : "border-slate-300 bg-white text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                  }`}
+                >
+                  #{tag}
+                </button>
+              );
+            })}
+            {tagFilter.length > 0 && (
+              <button
+                onClick={() => setTagFilter([])}
+                className="text-xs text-slate-400 hover:text-slate-600 underline"
+              >
+                Clear tags
+              </button>
+            )}
+          </div>
+        )}
 
         {loading && (
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -338,7 +561,7 @@ function CaseListPage({ courseId }) {
             </h2>
             <p className="mb-5 text-sm text-slate-500 dark:text-slate-400">
               {role !== "STUDENT"
-                ? "Try changing status/category filters or create a new case study."
+                ? "Try changing filters or create a new case study."
                 : "No published cases available yet."}
             </p>
             {(role === "FACULTY" || role === "ADMIN") && (
@@ -354,89 +577,26 @@ function CaseListPage({ courseId }) {
         )}
 
         {!loading && !isError && hasCases && (
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {paginatedCases.map((item) => {
-              const theme = getCategoryTheme(item.category);
-
-              return (
-                <article
-                  key={item.id}
-                  className={`group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 border-l-4 ${theme.cardAccent} ${theme.cardAccentHover} bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-slate-800 dark:bg-slate-950`}
-                >
-                  <div
-                    className={`h-32 bg-gradient-to-r ${theme.thumbnail} transition-all duration-300 group-hover:brightness-105`}
-                  />
-
-                  <div className="flex flex-1 flex-col p-5">
-                    <div className="mb-3 flex items-start justify-between gap-2">
-                      <h2 className="line-clamp-2 text-xl font-bold leading-tight text-slate-900 dark:text-slate-100">
-                        {item.title}
-                      </h2>
-                      <div className="shrink-0">
-                        <StatusBadge status={item.status} />
-                      </div>
-                    </div>
-
-                    <p className="mb-4 line-clamp-3 text-sm text-slate-600 dark:text-slate-300">
-                      {item.description}
-                    </p>
-
-                    <div className="mb-4 flex flex-wrap gap-2">
-                      {item.category && (
-                        <span
-                          className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${theme.pill}`}
-                        >
-                          {CATEGORY_LABELS[normalizeCategory(item.category)] || item.category}
-                        </span>
-                      )}
-                      {item.difficulty && (
-                        <span className="inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                          {String(item.difficulty).replaceAll("_", " ")}
-                        </span>
-                      )}
-                      {item.submissionType && (
-                        <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-violet-700 dark:border-violet-500/40 dark:bg-violet-950/40 dark:text-violet-200">
-                          {String(item.submissionType).replaceAll("_", " ")}
-                        </span>
-                      )}
-                      {item.dueDate && (
-                        <span className="inline-flex items-center rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300">
-                          Due {new Date(item.dueDate).toLocaleDateString()}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="mt-auto flex flex-wrap gap-2">
-                      <Link
-                        to={`/cases/${item.id}`}
-                        className="inline-flex items-center rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
-                      >
-                        View
-                      </Link>
-
-                      {canEditCase() && (
-                        <Link
-                          to={`/cases/${item.id}/edit`}
-                          className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                        >
-                          Edit
-                        </Link>
-                      )}
-
-                      {role === "ADMIN" && normalizeStatus(item.status) === "DRAFT" && (
-                        <button
-                          onClick={() => handlePublish(item.id)}
-                          className="inline-flex items-center rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700"
-                        >
-                          Publish
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
+          activeView === "list" ? (
+            <CaseListView
+              cases={paginatedCases}
+              query={debouncedSearch}
+              normalizeCategory={normalizeCategory}
+              categoryLabels={CATEGORY_LABELS}
+            />
+          ) : (
+            <CaseGridView
+              cases={paginatedCases}
+              role={role}
+              user={user}
+              onPublish={handlePublish}
+              canEditCase={canEditCase}
+              getCategoryTheme={getCategoryTheme}
+              normalizeCategory={normalizeCategory}
+              normalizeStatus={normalizeStatus}
+              categoryLabels={CATEGORY_LABELS}
+            />
+          )
         )}
       </section>
 

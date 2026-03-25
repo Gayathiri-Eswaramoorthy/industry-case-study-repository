@@ -27,7 +27,23 @@ public class CaseStudyResponse {
     private Integer maxMarks;
     private CaseCategory category;
     private SubmissionType submissionType;
+    private boolean groupSubmissionEnabled;
+    private Integer maxGroupSize;
     private String caseMaterialPath;
+    private String caseDocumentOriginalName;
+    private boolean hasDocument;
+    private String companyName;
+    private String realCompanyName;
+    private boolean isDisguised;
+    private String industry;
+    private String geographicRegion;
+    private String protagonistRole;
+    private Integer publicationYear;
+    private String sourceAttribution;
+    private String caseNarrative;
+    private String companyBackground;
+    private String industryContext;
+    private String decisionPoint;
     private String problemStatement;
     private String keyQuestions;
     private String evaluationRubric;
@@ -35,6 +51,14 @@ public class CaseStudyResponse {
     // expectedOutcome is intentionally excluded so it is never exposed in student-facing responses.
     private String referenceLinks;
     private Integer estimatedHours;
+    private String teachingNotesText;
+    private String teachingNotesOriginalName;
+    private boolean hasTeachingNotes;
+    private List<CaseExhibitDTO> exhibits;
+    private List<String> tags;
+    private Long submissionCount;
+    private Integer peerReviewRating;
+    private Long peerReviewCount;
     private List<Long> coIds;
     private LocalDateTime createdAt;
 }

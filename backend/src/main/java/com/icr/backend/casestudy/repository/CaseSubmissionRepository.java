@@ -5,6 +5,8 @@ import com.icr.backend.casestudy.enums.SubmissionStatus;
 import com.icr.backend.casestudy.dto.FacultyCaseSubmissionDTO;
 import com.icr.backend.casestudy.dto.FacultySubmissionDTO;
 import com.icr.backend.dto.FacultyCaseSubmissionCountDTO;
+import com.icr.backend.repository.projection.FacultySubmissionStatusCountProjection;
+import com.icr.backend.repository.projection.StudentSubmissionStatusCountProjection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -17,6 +19,8 @@ import java.util.Optional;
 public interface CaseSubmissionRepository extends JpaRepository<CaseSubmission, Long> {
 
     Optional<CaseSubmission> findByCaseIdAndStudentId(Long caseId, Long studentId);
+
+    boolean existsByCaseIdAndGroupId(Long caseId, Long groupId);
 
     @Query("""
             SELECT s FROM CaseSubmission s
@@ -31,6 +35,7 @@ public interface CaseSubmissionRepository extends JpaRepository<CaseSubmission, 
     );
 
     List<CaseSubmission> findByCaseId(Long caseId);
+    long countByCaseId(Long caseId);
 
     List<CaseSubmission> findByCaseIdInOrderBySubmittedAtDesc(List<Long> caseIds);
 
@@ -84,9 +89,59 @@ public interface CaseSubmissionRepository extends JpaRepository<CaseSubmission, 
 
     Optional<CaseSubmission> findByIdAndCaseIdIn(Long submissionId, List<Long> caseIds);
 
+    @Query("""
+        SELECT s FROM CaseSubmission s
+        JOIN User u ON u.id = s.studentId
+        WHERE s.id = :submissionId
+          AND u.requestedFaculty.id = :facultyId
+        """)
+    Optional<CaseSubmission> findByIdAndStudentFacultyId(
+            @Param("submissionId") Long submissionId,
+            @Param("facultyId") Long facultyId
+    );
+
+    @Query("""
+        SELECT s FROM CaseSubmission s
+        JOIN User u ON u.id = s.studentId
+        WHERE u.requestedFaculty.id = :facultyId
+        ORDER BY s.submittedAt DESC
+        """)
+    List<CaseSubmission> findAllByStudentFacultyId(@Param("facultyId") Long facultyId);
+
+    @Query("""
+        SELECT COUNT(s) FROM CaseSubmission s
+        JOIN User u ON u.id = s.studentId
+        WHERE u.requestedFaculty.id = :facultyId
+          AND s.status = :status
+        """)
+    long countByStudentFacultyIdAndStatus(
+            @Param("facultyId") Long facultyId,
+            @Param("status") SubmissionStatus status
+    );
+
     List<CaseSubmission> findByStudentId(Long studentId);
 
     Page<CaseSubmission> findByStudentId(Long studentId, Pageable pageable);
+
+    @Query("""
+        SELECT s
+        FROM CaseSubmission s
+        WHERE s.studentId = :studentId
+           OR (
+                s.groupId IS NOT NULL
+                AND s.groupId IN (
+                    SELECT gm.group.id
+                    FROM SubmissionGroupMember gm
+                    WHERE gm.student.id = :studentId
+                      AND gm.status = com.icr.backend.casestudy.enums.MemberStatus.APPROVED
+                      AND gm.group.caseStudy.id = s.caseId
+                )
+           )
+        """)
+    Page<CaseSubmission> findVisibleSubmissionsForStudent(
+            @Param("studentId") Long studentId,
+            Pageable pageable
+    );
 
     List<CaseSubmission> findByStudentIdAndStatus(Long studentId, SubmissionStatus status);
 
@@ -101,6 +156,46 @@ public interface CaseSubmissionRepository extends JpaRepository<CaseSubmission, 
     long countByStudentId(Long studentId);
 
     long countByStudentIdAndStatusIn(Long studentId, List<SubmissionStatus> statuses);
+
+    @Query("""
+        SELECT COUNT(s)
+        FROM CaseSubmission s
+        WHERE s.studentId = :studentId
+           OR (
+                s.groupId IS NOT NULL
+                AND s.groupId IN (
+                    SELECT gm.group.id
+                    FROM SubmissionGroupMember gm
+                    WHERE gm.student.id = :studentId
+                      AND gm.status = com.icr.backend.casestudy.enums.MemberStatus.APPROVED
+                      AND gm.group.caseStudy.id = s.caseId
+                )
+           )
+        """)
+    long countVisibleSubmissionsForStudent(@Param("studentId") Long studentId);
+
+    @Query("""
+        SELECT COUNT(s)
+        FROM CaseSubmission s
+        WHERE (
+                s.studentId = :studentId
+                OR (
+                    s.groupId IS NOT NULL
+                    AND s.groupId IN (
+                        SELECT gm.group.id
+                        FROM SubmissionGroupMember gm
+                        WHERE gm.student.id = :studentId
+                          AND gm.status = com.icr.backend.casestudy.enums.MemberStatus.APPROVED
+                          AND gm.group.caseStudy.id = s.caseId
+                    )
+                )
+              )
+          AND s.status IN :statuses
+        """)
+    long countVisibleSubmissionsForStudentByStatusIn(
+            @Param("studentId") Long studentId,
+            @Param("statuses") List<SubmissionStatus> statuses
+    );
 
     long count();
 
@@ -117,4 +212,34 @@ public interface CaseSubmissionRepository extends JpaRepository<CaseSubmission, 
     );
 
     List<CaseSubmission> findAllByOrderBySubmittedAtDesc(Pageable pageable);
+
+    @Query("""
+        SELECT MAX(s.marksAwarded)
+        FROM CaseSubmission s
+        WHERE s.caseId = :caseId
+          AND s.marksAwarded IS NOT NULL
+        """)
+    Integer findMaxMarksAwardedByCaseId(@Param("caseId") Long caseId);
+
+    @Query("""
+        SELECT u.requestedFaculty.id as facultyId, s.status as status, COUNT(s.id) as total
+        FROM CaseSubmission s
+        JOIN User u ON u.id = s.studentId
+        WHERE u.role.name = com.icr.backend.enums.RoleType.STUDENT
+          AND u.requestedFaculty.id IS NOT NULL
+        GROUP BY u.requestedFaculty.id, s.status
+        """)
+    List<FacultySubmissionStatusCountProjection> findFacultySubmissionStatusCounts();
+
+    @Query("""
+        SELECT u.id as studentId, s.status as status, COUNT(s.id) as total
+        FROM CaseSubmission s
+        JOIN User u ON u.id = s.studentId
+        WHERE u.role.name = com.icr.backend.enums.RoleType.STUDENT
+          AND u.requestedFaculty.id = :facultyId
+        GROUP BY u.id, s.status
+        """)
+    List<StudentSubmissionStatusCountProjection> findStudentSubmissionStatusCountsByFacultyId(
+            @Param("facultyId") Long facultyId
+    );
 }

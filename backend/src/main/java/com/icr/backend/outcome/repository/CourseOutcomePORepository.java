@@ -10,6 +10,7 @@ import java.util.List;
 public interface CourseOutcomePORepository extends JpaRepository<CourseOutcomePOMapping, Long> {
 
     List<CourseOutcomePOMapping> findByCourseOutcomeId(Long coId);
+    List<CourseOutcomePOMapping> findByCourseOutcomeIdIn(List<Long> coIds);
 
     boolean existsByCourseOutcomeIdAndProgramOutcomeId(Long coId, Long poId);
 

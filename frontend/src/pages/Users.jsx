@@ -5,7 +5,10 @@ import toast from "react-hot-toast";
 import {
   createUser,
   deleteUser,
+  getFacultyList,
+  getUserStats,
   getUsers,
+  reassignStudent,
   resetUserPassword,
 } from "../api/userService";
 import { AuthContext } from "../context/AuthContext";
@@ -65,6 +68,19 @@ function roleBadgeClass(role) {
   return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-200";
 }
 
+function statusBadgeClass(status) {
+  if (status === "APPROVED") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-200";
+  }
+  if (status === "PENDING_FACULTY_APPROVAL" || status === "PENDING_ADMIN_APPROVAL") {
+    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-200";
+  }
+  if (status === "REJECTED") {
+    return "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-950/40 dark:text-red-200";
+  }
+  return "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200";
+}
+
 function Users() {
   const { user } = useContext(AuthContext);
   const [page, setPage] = useState(0);
@@ -77,6 +93,13 @@ function Users() {
   const [resetForm, setResetForm] = useState(INITIAL_RESET_FORM);
   const [formError, setFormError] = useState("");
   const [resetError, setResetError] = useState("");
+  const [reassignModal, setReassignModal] = useState({
+    open: false,
+    studentId: null,
+    studentName: "",
+    currentFacultyName: "",
+    selectedFacultyId: "",
+  });
   const queryClient = useQueryClient();
 
   const {
@@ -95,31 +118,23 @@ function Users() {
 
   const { data: counts } = useQuery({
     queryKey: ["user-counts"],
-    queryFn: async () => {
-      const [all, faculty, student, admin] = await Promise.all([
-        getUsers({ page: 0, size: 1, role: null }),
-        getUsers({ page: 0, size: 1, role: "FACULTY" }),
-        getUsers({ page: 0, size: 1, role: "STUDENT" }),
-        getUsers({ page: 0, size: 1, role: "ADMIN" }),
-      ]);
-
-      return {
-        ALL: all?.totalElements ?? 0,
-        FACULTY: faculty?.totalElements ?? 0,
-        STUDENT: student?.totalElements ?? 0,
-        ADMIN: admin?.totalElements ?? 0,
-      };
-    },
+    queryFn: getUserStats,
     staleTime: 30000,
+  });
+
+  const { data: facultyList = [] } = useQuery({
+    queryKey: ["faculty-list"],
+    queryFn: getFacultyList,
+    enabled: true,
   });
 
   const users = pageData?.content ?? [];
   const totalPages = pageData?.totalPages ?? 0;
   const roleCounts = {
-    ALL: counts?.ALL ?? 0,
-    FACULTY: counts?.FACULTY ?? 0,
-    STUDENT: counts?.STUDENT ?? 0,
-    ADMIN: counts?.ADMIN ?? 0,
+    ALL: counts?.total ?? 0,
+    FACULTY: counts?.faculty ?? 0,
+    STUDENT: counts?.student ?? 0,
+    ADMIN: counts?.admin ?? 0,
   };
   const filteredUsers = users.filter((user) => {
     const term = searchTerm.trim().toLowerCase();
@@ -170,6 +185,26 @@ function Users() {
       const message =
         error?.response?.data?.message || "Failed to reset password";
       setResetError(message);
+      toast.error(message);
+    },
+  });
+
+  const reassignMutation = useMutation({
+    mutationFn: reassignStudent,
+    onSuccess: () => {
+      toast.success("Student reassigned successfully");
+      setReassignModal({
+        open: false,
+        studentId: null,
+        studentName: "",
+        currentFacultyName: "",
+        selectedFacultyId: "",
+      });
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+    },
+    onError: (error) => {
+      const message =
+        error?.response?.data?.message || "Failed to reassign student";
       toast.error(message);
     },
   });
@@ -360,6 +395,12 @@ function Users() {
                     Role
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
+                    Assigned Faculty
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
                     Actions
                   </th>
                 </tr>
@@ -384,6 +425,16 @@ function Users() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
+                      <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${statusBadgeClass(u.status)}`}>
+                        {u.status ? u.status.replaceAll("_", " ") : "-"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+                      {u.role === "STUDENT"
+                        ? u.requestedFacultyName || "Not assigned"
+                        : "-"}
+                    </td>
+                    <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
@@ -394,6 +445,23 @@ function Users() {
                           <KeyRound className="h-3.5 w-3.5" />
                           Reset
                         </button>
+                        {u.role === "STUDENT" && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setReassignModal({
+                                open: true,
+                                studentId: u.id,
+                                studentName: u.fullName,
+                                currentFacultyName: u.requestedFacultyName || "Not assigned",
+                                selectedFacultyId: u.requestedFacultyId ? String(u.requestedFacultyId) : "",
+                              })
+                            }
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                          >
+                            Reassign
+                          </button>
+                        )}
                         {u.id !== user?.id ? (
                           <button
                             type="button"
@@ -606,6 +674,94 @@ function Users() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {reassignModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Reassign Student</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{reassignModal.studentName}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setReassignModal({
+                    open: false,
+                    studentId: null,
+                    studentName: "",
+                    currentFacultyName: "",
+                    selectedFacultyId: "",
+                  })
+                }
+                className="rounded-md p-1 text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                X
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                Current Faculty:{" "}
+                <span className="font-semibold text-slate-800 dark:text-slate-100">
+                  {reassignModal.currentFacultyName || "Not assigned"}
+                </span>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                  Select New Faculty
+                </label>
+                <select
+                  value={reassignModal.selectedFacultyId}
+                  onChange={(e) =>
+                    setReassignModal((prev) => ({ ...prev, selectedFacultyId: e.target.value }))
+                  }
+                  className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-500 focus:ring-1 focus:ring-slate-500 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+                >
+                  <option value="">-- Select faculty --</option>
+                  {facultyList.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.fullName} ({f.email})
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Reassignment resets this student to pending faculty approval.
+                </p>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setReassignModal({
+                      open: false,
+                      studentId: null,
+                      studentName: "",
+                      currentFacultyName: "",
+                      selectedFacultyId: "",
+                    })
+                  }
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!reassignModal.selectedFacultyId || reassignMutation.isPending}
+                  onClick={() =>
+                    reassignMutation.mutate({
+                      studentId: reassignModal.studentId,
+                      newFacultyId: Number(reassignModal.selectedFacultyId),
+                    })
+                  }
+                  className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
+                >
+                  {reassignMutation.isPending ? "Reassigning..." : "Confirm"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -35,6 +35,10 @@ function getErrorMessage(error) {
 
 function ActivityFeed({ maxItems = 8, courseId }) {
   const { role } = useContext(AuthContext);
+  const normalizedRole =
+    typeof role === "string" && role.startsWith("ROLE_")
+      ? role.replace("ROLE_", "")
+      : role;
 
   const {
     data: activities = [],
@@ -42,18 +46,18 @@ function ActivityFeed({ maxItems = 8, courseId }) {
     isError,
     error,
   } = useQuery({
-    queryKey: ["activity-feed", role, courseId, maxItems],
-    enabled: Boolean(role),
+    queryKey: ["activity-feed", normalizedRole, courseId, maxItems],
+    enabled: Boolean(normalizedRole),
     queryFn: async () => {
-      if (role === "STUDENT") {
+      if (normalizedRole === "STUDENT") {
         return activityService.getStudentActivity(maxItems);
       }
 
-      if (role === "FACULTY") {
+      if (normalizedRole === "FACULTY") {
         return activityService.getFacultyActivity(maxItems, courseId);
       }
 
-      if (role === "ADMIN") {
+      if (normalizedRole === "ADMIN") {
         return activityService.getAdminActivity(maxItems);
       }
 

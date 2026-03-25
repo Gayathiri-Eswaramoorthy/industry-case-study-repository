@@ -28,6 +28,87 @@ const caseService = {
     return response.data.data;
   },
 
+  async getRelatedCases(caseId) {
+    const response = await axiosInstance.get(`/cases/${caseId}/related`);
+    return response.data?.data ?? response.data ?? [];
+  },
+
+  async requestPeerReview(caseId, payload) {
+    const response = await axiosInstance.post(`/cases/${caseId}/peer-review/request`, payload);
+    return response.data?.data ?? response.data;
+  },
+
+  async acceptReview(caseId, reviewId) {
+    const response = await axiosInstance.put(`/cases/${caseId}/peer-review/${reviewId}/accept`);
+    return response.data?.data ?? response.data;
+  },
+
+  async completeReview(caseId, reviewId, payload) {
+    const response = await axiosInstance.put(
+      `/cases/${caseId}/peer-review/${reviewId}/complete`,
+      payload
+    );
+    return response.data?.data ?? response.data;
+  },
+
+  async declineReview(caseId, reviewId) {
+    const response = await axiosInstance.put(`/cases/${caseId}/peer-review/${reviewId}/decline`);
+    return response.data?.data ?? response.data;
+  },
+
+  async getPeerReviews() {
+    const response = await axiosInstance.get("/faculty/peer-reviews");
+    return response.data?.data ?? response.data ?? [];
+  },
+
+  async getCasePeerReviews(caseId) {
+    const response = await axiosInstance.get(`/cases/${caseId}/peer-reviews`);
+    return response.data?.data ?? response.data ?? [];
+  },
+
+  async createGroup(caseId, payload) {
+    const response = await axiosInstance.post(`/cases/${caseId}/groups`, payload);
+    return response.data?.data ?? response.data;
+  },
+
+  async joinGroup(caseId, groupId) {
+    const response = await axiosInstance.post(`/cases/${caseId}/groups/${groupId}/join`);
+    return response.data?.data ?? response.data;
+  },
+
+  async approveMember(caseId, groupId, studentId) {
+    const response = await axiosInstance.put(
+      `/cases/${caseId}/groups/${groupId}/members/${studentId}/approve`
+    );
+    return response.data?.data ?? response.data;
+  },
+
+  async rejectMember(caseId, groupId, studentId) {
+    const response = await axiosInstance.put(
+      `/cases/${caseId}/groups/${groupId}/members/${studentId}/reject`
+    );
+    return response.data?.data ?? response.data;
+  },
+
+  async leaveGroup(caseId, groupId) {
+    await axiosInstance.delete(`/cases/${caseId}/groups/${groupId}/leave`);
+  },
+
+  async getAllGroups(caseId) {
+    const response = await axiosInstance.get(`/cases/${caseId}/groups`);
+    return response.data?.data ?? response.data ?? [];
+  },
+
+  async getMyGroup(caseId) {
+    const response = await axiosInstance.get(`/cases/${caseId}/my-group`, {
+      validateStatus: (status) => status === 200 || status === 204,
+    });
+    if (response.status === 204) {
+      return null;
+    }
+    return response.data?.data ?? response.data ?? null;
+  },
+
   async getCourseOutcomes(courseId) {
     const response = await axiosInstance.get(`/course-outcomes/${courseId}`);
     return response.data?.data ?? response.data ?? [];
@@ -63,11 +144,132 @@ const caseService = {
     return response.data?.data ?? response.data ?? [];
   },
 
-  async createCourse({ courseCode, courseName }) {
-    const response = await axiosInstance.post(
-      `/courses?courseCode=${encodeURIComponent(courseCode)}&courseName=${encodeURIComponent(courseName)}`
+  async createCourse(courseCode, courseName) {
+    const response = await axiosInstance.post("/courses", null, {
+      params: { courseCode, courseName },
+    });
+    return response.data?.data ?? response.data ?? null;
+  },
+
+  async getAllTags() {
+    const response = await axiosInstance.get("/cases/tags");
+    return response.data?.data ?? response.data ?? [];
+  },
+
+  async searchCases({ q, status, category, difficulty, tags, minYear, maxYear, page, size, sort }) {
+    const params = {};
+    if (q) params.q = q;
+    if (status) params.status = status;
+    if (category && category !== "ALL") params.category = category;
+    if (difficulty && difficulty !== "ALL") params.difficulty = difficulty;
+    if (tags && tags.length > 0) params.tags = tags;
+    if (minYear) params.minYear = minYear;
+    if (maxYear) params.maxYear = maxYear;
+    if (page !== undefined) params.page = page;
+    if (size !== undefined) params.size = size;
+    if (sort) params.sort = sort;
+
+    const response = await axiosInstance.get("/cases/search", {
+      params,
+      paramsSerializer: {
+        serialize: (rawParams) => {
+          const searchParams = new URLSearchParams();
+          Object.entries(rawParams).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+              value.forEach((item) => searchParams.append(key, String(item)));
+            } else if (value !== undefined && value !== null) {
+              searchParams.append(key, String(value));
+            }
+          });
+          return searchParams.toString();
+        },
+      },
+    });
+    return response.data?.data ?? response.data ?? {
+      content: [],
+      page: 0,
+      size: 10,
+      totalElements: 0,
+      totalPages: 0,
+      last: true,
+    };
+  },
+
+  async uploadCaseDocument(caseId, file) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await axiosInstance.post(`/cases/${caseId}/document`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return response.data;
+  },
+
+  async uploadTeachingNotes(caseId, file) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await axiosInstance.post(`/cases/${caseId}/teaching-notes`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return response.data;
+  },
+
+  async downloadTeachingNotes(caseId, originalName) {
+    const token = localStorage.getItem("token");
+    const response = await fetch(
+      `http://localhost:8080/api/cases/${caseId}/teaching-notes`,
+      { headers: { Authorization: `Bearer ${token}` } }
     );
-    return response.data?.data ?? response.data;
+    if (!response.ok) throw new Error("Download failed");
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = originalName || "teaching-notes.pdf";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  async uploadExhibit(caseId, file, title, description) {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("title", title);
+    if (description) formData.append("description", description);
+    const response = await axiosInstance.post(`/cases/${caseId}/exhibits`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return response.data;
+  },
+
+  async deleteExhibit(caseId, exhibitId) {
+    await axiosInstance.delete(`/cases/${caseId}/exhibits/${exhibitId}`);
+  },
+
+  async downloadExhibit(caseId, exhibitId, originalFileName) {
+    const token = localStorage.getItem("token");
+    const response = await fetch(
+      `http://localhost:8080/api/cases/${caseId}/exhibits/${exhibitId}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!response.ok) throw new Error("Download failed");
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = originalFileName || "exhibit";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  getCaseDocumentUrl(caseId) {
+    const baseURL = (axiosInstance.defaults.baseURL || "").replace(/\/$/, "");
+    if (!baseURL) {
+      return `/api/cases/${caseId}/document`;
+    }
+    return `${baseURL}/cases/${caseId}/document`;
   },
 
   async getAttemptTimeline(caseId) {
@@ -112,7 +314,7 @@ const caseService = {
   },
 
   async publishCase(caseId) {
-    const response = await axiosInstance.put(`/admin/cases/${caseId}/publish`);
+    const response = await axiosInstance.put(`/cases/${caseId}/publish`);
     return response.data;
   },
 

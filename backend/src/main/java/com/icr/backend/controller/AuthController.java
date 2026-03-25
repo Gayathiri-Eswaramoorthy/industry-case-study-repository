@@ -23,6 +23,20 @@ public class AuthController {
         return "User registered successfully";
     }
 
+    @PostMapping("/register/faculty")
+    @Operation(summary = "Register faculty (pending admin approval)")
+    public String registerFaculty(@RequestBody RegisterRequest request) {
+        authService.registerFaculty(request);
+        return "Faculty registered successfully";
+    }
+
+    @PostMapping("/register/student")
+    @Operation(summary = "Register student (pending faculty approval)")
+    public String registerStudent(@RequestBody RegisterRequest request) {
+        authService.registerStudent(request);
+        return "Student registered successfully";
+    }
+
     @PostMapping("/login")
     @Operation(summary = "Login user")
     public String login(@RequestBody LoginRequest request) {

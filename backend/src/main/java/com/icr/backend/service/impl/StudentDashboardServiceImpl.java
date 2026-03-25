@@ -33,9 +33,9 @@ public class StudentDashboardServiceImpl implements StudentDashboardService {
                 CaseStatus.PUBLISHED,
                 LocalDateTime.now()
         );
-        long mySubmissions = caseSubmissionRepository.countByStudentId(student.getId());
+        long mySubmissions = caseSubmissionRepository.countVisibleSubmissionsForStudent(student.getId());
         long submitted = mySubmissions;
-        long pendingReview = caseSubmissionRepository.countByStudentIdAndStatusIn(
+        long pendingReview = caseSubmissionRepository.countVisibleSubmissionsForStudentByStatusIn(
                 student.getId(),
                 List.of(SubmissionStatus.SUBMITTED, SubmissionStatus.UNDER_REVIEW)
         );

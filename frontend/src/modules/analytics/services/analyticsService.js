@@ -43,6 +43,24 @@ const analyticsService = {
     const response = await axiosInstance.get("/admin/analytics/top-cases");
     return response.data;
   },
+
+  async getFacultyPerformance() {
+    const response = await axiosInstance.get("/admin/faculty-performance");
+    return Array.isArray(response.data) ? response.data : [];
+  },
+
+  async getOverallStats() {
+    const response = await axiosInstance.get("/admin/overall-stats");
+    return response.data ?? {};
+  },
+
+  async getFacultyStudentsBreakdown(facultyId) {
+    if (facultyId === null || facultyId === undefined || facultyId === "") {
+      throw new Error("Faculty ID is required for student breakdown.");
+    }
+    const response = await axiosInstance.get(`/admin/faculty-performance/${facultyId}/students`);
+    return response.data ?? null;
+  },
 };
 
 export default analyticsService;

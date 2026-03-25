@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.Collections;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -98,6 +99,7 @@ public class StudentAttainmentServiceImpl implements StudentAttainmentService {
                             caseStudy -> caseStudy,
                             (existing, replacement) -> existing
                     ));
+            Map<Long, Integer> inferredMaxMarksByCaseId = buildInferredMaxMarks(caseIds, caseStudyMap);
 
             Map<Long, Map<Long, SubmissionCoScore>> coScoresBySubmission = new HashMap<>();
             for (CaseSubmission submission : evaluatedSubmissions) {
@@ -150,11 +152,11 @@ public class StudentAttainmentServiceImpl implements StudentAttainmentService {
                             attainmentStatus = resolveAttainmentStatus(percentage);
                         } else {
                             CaseStudy caseStudy = caseStudyMap.get(submission.getCaseId());
-                            int maxMarks = (caseStudy != null
-                                    && caseStudy.getMaxMarks() != null
-                                    && caseStudy.getMaxMarks() > 0)
-                                    ? caseStudy.getMaxMarks()
-                                    : 100;
+                            int maxMarks = resolveCaseMaxMarks(
+                                    submission.getCaseId(),
+                                    caseStudy,
+                                    inferredMaxMarksByCaseId
+                            );
                             double percentage = (submission.getMarksAwarded() * 100.0) / maxMarks;
                             displayScore = submission.getMarksAwarded();
                             attainmentStatus = resolveAttainmentStatus(percentage);
@@ -219,6 +221,7 @@ public class StudentAttainmentServiceImpl implements StudentAttainmentService {
                         caseStudy -> caseStudy,
                         (existing, replacement) -> existing
                 ));
+        Map<Long, Integer> inferredMaxMarksByCaseId = buildInferredMaxMarks(caseIds, caseStudyMap);
 
         Map<Long, Map<Long, SubmissionCoScore>> coScoresBySubmission = new HashMap<>();
         for (CaseSubmission submission : evaluatedSubmissions) {
@@ -247,11 +250,11 @@ public class StudentAttainmentServiceImpl implements StudentAttainmentService {
             Map<Long, SubmissionCoScore> coScoreMap =
                     coScoresBySubmission.getOrDefault(submission.getId(), Map.of());
             CaseStudy caseStudy = caseStudyMap.get(submission.getCaseId());
-            int maxMarks = (caseStudy != null
-                    && caseStudy.getMaxMarks() != null
-                    && caseStudy.getMaxMarks() > 0)
-                    ? caseStudy.getMaxMarks()
-                    : 100;
+            int maxMarks = resolveCaseMaxMarks(
+                    submission.getCaseId(),
+                    caseStudy,
+                    inferredMaxMarksByCaseId
+            );
 
             List<CaseCoMapping> coMappings = caseCoMappingRepository.findByCaseStudyId(submission.getCaseId());
             for (CaseCoMapping coMapping : coMappings) {
@@ -355,5 +358,31 @@ public class StudentAttainmentServiceImpl implements StudentAttainmentService {
 
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new AccessDeniedException("Authenticated user not found"));
+    }
+
+    private Map<Long, Integer> buildInferredMaxMarks(Collection<Long> caseIds, Map<Long, CaseStudy> caseStudyMap) {
+        Map<Long, Integer> inferred = new HashMap<>();
+        for (Long caseId : caseIds) {
+            CaseStudy caseStudy = caseStudyMap.get(caseId);
+            if (caseStudy != null && caseStudy.getMaxMarks() != null && caseStudy.getMaxMarks() > 0) {
+                continue;
+            }
+            Integer inferredMax = caseSubmissionRepository.findMaxMarksAwardedByCaseId(caseId);
+            if (inferredMax != null && inferredMax > 0) {
+                inferred.put(caseId, inferredMax);
+            }
+        }
+        return inferred;
+    }
+
+    private int resolveCaseMaxMarks(Long caseId, CaseStudy caseStudy, Map<Long, Integer> inferredMaxMarksByCaseId) {
+        if (caseStudy != null && caseStudy.getMaxMarks() != null && caseStudy.getMaxMarks() > 0) {
+            return caseStudy.getMaxMarks();
+        }
+        Integer inferredMax = inferredMaxMarksByCaseId.get(caseId);
+        if (inferredMax != null && inferredMax > 0) {
+            return inferredMax;
+        }
+        return 100;
     }
 }

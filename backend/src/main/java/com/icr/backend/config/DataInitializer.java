@@ -17,6 +17,8 @@ public class DataInitializer {
 
     @PostConstruct
     public void initRoles() {
+        initializeUserStatuses();
+        normalizeCaseStudyFlags();
         normalizeLegacyRoleNames();
 
         for (RoleType roleType : RoleType.values()) {
@@ -39,16 +41,44 @@ public class DataInitializer {
     }
 
     private void normalizeRoleName(String legacyValue, String normalizedValue) {
+        try {
+            jdbcTemplate.update(
+                    "UPDATE roles SET name = ? WHERE name = ?",
+                    normalizedValue,
+                    legacyValue
+            );
+            jdbcTemplate.update(
+                    "DELETE r1 FROM roles r1 " +
+                            "JOIN roles r2 ON r1.name = r2.name AND r1.id > r2.id " +
+                            "WHERE r1.name = ?",
+                    normalizedValue
+            );
+        } catch (Exception ignored) {
+            // Compatibility fallback for non-MySQL test databases.
+        }
+    }
+
+    private void initializeUserStatuses() {
         jdbcTemplate.update(
-                "UPDATE roles SET name = ? WHERE name = ?",
-                normalizedValue,
-                legacyValue
+                "UPDATE users SET status = 'APPROVED' WHERE status IS NULL"
         );
-        jdbcTemplate.update(
-                "DELETE r1 FROM roles r1 " +
-                        "JOIN roles r2 ON r1.name = r2.name AND r1.id > r2.id " +
-                        "WHERE r1.name = ?",
-                normalizedValue
-        );
+    }
+
+    private void normalizeCaseStudyFlags() {
+        try {
+            jdbcTemplate.update(
+                    "UPDATE case_studies SET is_disguised = false WHERE is_disguised IS NULL"
+            );
+        } catch (Exception ignored) {
+            // Keep startup resilient for environments where schema differs.
+        }
+
+        try {
+            jdbcTemplate.update(
+                    "UPDATE case_studies SET group_submission_enabled = false WHERE group_submission_enabled IS NULL"
+            );
+        } catch (Exception ignored) {
+            // Keep startup resilient for environments where schema differs.
+        }
     }
 }

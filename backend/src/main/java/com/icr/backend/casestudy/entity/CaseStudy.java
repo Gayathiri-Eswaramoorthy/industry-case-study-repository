@@ -55,8 +55,58 @@ public class CaseStudy {
     @Builder.Default
     private SubmissionType submissionType = SubmissionType.TEXT;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean groupSubmissionEnabled = false;
+
+    @Column
+    private Integer maxGroupSize;
+
     @Column(name = "case_material_path")
     private String caseMaterialPath;
+
+    @Column(name = "case_document_path")
+    private String caseDocumentPath;
+
+    @Column(name = "case_document_original_name")
+    private String caseDocumentOriginalName;
+
+    @Column(name = "company_name")
+    private String companyName;
+
+    @Column(name = "real_company_name")
+    private String realCompanyName;
+
+    @Column(name = "is_disguised")
+    @Builder.Default
+    private boolean isDisguised = false;
+
+    @Column(name = "industry")
+    private String industry;
+
+    @Column(name = "geographic_region")
+    private String geographicRegion;
+
+    @Column(name = "protagonist_role")
+    private String protagonistRole;
+
+    @Column(name = "publication_year")
+    private Integer publicationYear;
+
+    @Column(name = "source_attribution", length = 500)
+    private String sourceAttribution;
+
+    @Column(name = "case_narrative", columnDefinition = "LONGTEXT")
+    private String caseNarrative;
+
+    @Column(name = "company_background", columnDefinition = "TEXT")
+    private String companyBackground;
+
+    @Column(name = "industry_context", columnDefinition = "TEXT")
+    private String industryContext;
+
+    @Column(name = "decision_point", columnDefinition = "TEXT")
+    private String decisionPoint;
 
     @Column(columnDefinition = "TEXT")
     private String problemStatement;
@@ -72,6 +122,15 @@ public class CaseStudy {
 
     @Column(columnDefinition = "TEXT")
     private String expectedOutcome;
+
+    @Column(name = "teaching_notes_path")
+    private String teachingNotesPath;
+
+    @Column(name = "teaching_notes_original_name")
+    private String teachingNotesOriginalName;
+
+    @Column(name = "teaching_notes_text", columnDefinition = "LONGTEXT")
+    private String teachingNotesText;
 
     private String referenceLinks;
 

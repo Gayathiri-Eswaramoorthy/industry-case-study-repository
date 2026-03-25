@@ -21,4 +21,10 @@ public class RegisterRequest {
 
     @NotNull(message = "Role is required")
     private RoleType role;
+
+    private String department;
+
+    private String specialization;
+
+    private Long requestedFacultyId;
 }
