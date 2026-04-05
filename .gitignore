@@ -6,6 +6,7 @@
 node_modules/
 dist/
 build/
+test-results/
 
 # Java
 target/
@@ -17,6 +18,9 @@ application-local.properties
 
 # Logs
 *.log
+
+# Runtime uploads
+uploads/
 
 # OS
 .DS_Store

@@ -215,8 +215,9 @@ const caseService = {
 
   async downloadTeachingNotes(caseId, originalName) {
     const token = localStorage.getItem("token");
+    const apiBase = (axiosInstance.defaults.baseURL || "").replace(/\/$/, "");
     const response = await fetch(
-      `http://localhost:8080/api/cases/${caseId}/teaching-notes`,
+      `${apiBase}/cases/${caseId}/teaching-notes`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     if (!response.ok) throw new Error("Download failed");
@@ -248,8 +249,9 @@ const caseService = {
 
   async downloadExhibit(caseId, exhibitId, originalFileName) {
     const token = localStorage.getItem("token");
+    const apiBase = (axiosInstance.defaults.baseURL || "").replace(/\/$/, "");
     const response = await fetch(
-      `http://localhost:8080/api/cases/${caseId}/exhibits/${exhibitId}`,
+      `${apiBase}/cases/${caseId}/exhibits/${exhibitId}`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     if (!response.ok) throw new Error("Download failed");

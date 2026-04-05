@@ -54,7 +54,7 @@ public class DataInitializer {
                     normalizedValue
             );
         } catch (Exception ignored) {
-            // Compatibility fallback for non-MySQL test databases.
+            // Compatibility fallback for databases that don't support this dedupe SQL.
         }
     }
 

@@ -13,7 +13,7 @@ SELECT
   '$2a$12$REPLACE_WITH_BCRYPT_HASH_OF_YOUR_ADMIN_PASSWORD',
   r.id,
   'APPROVED',
-  b'0',
+  FALSE,
   NOW(),
   NOW()
 FROM roles r

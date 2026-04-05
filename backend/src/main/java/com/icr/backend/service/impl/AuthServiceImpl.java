@@ -12,8 +12,8 @@ import com.icr.backend.repository.UserRepository;
 import com.icr.backend.security.JwtUtil;
 import com.icr.backend.service.AuthService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -25,7 +25,6 @@ public class AuthServiceImpl implements AuthService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
-    private final AuthenticationManager authenticationManager;
 
     @Override
     public void register(RegisterRequest request) {
@@ -128,33 +127,42 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public String login(LoginRequest request) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getEmail(),
-                        request.getPassword()
-                )
-        );
+        try {
+            User user = userRepository.findByEmail(request.getEmail())
+                    .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        if (user.getStatus() == UserStatus.PENDING_ADMIN_APPROVAL) {
-            throw new IllegalStateException("Your account is pending admin approval");
-        }
-        if (user.getStatus() == UserStatus.PENDING_FACULTY_APPROVAL) {
-            throw new IllegalStateException("Your account is pending faculty approval");
-        }
-        if (user.getStatus() == UserStatus.REJECTED) {
-            throw new IllegalStateException("Your registration was rejected: " + user.getRejectionReason());
-        }
-        if (user.getStatus() != UserStatus.APPROVED) {
-            throw new IllegalStateException("Your account is not approved");
-        }
+            if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+                throw new BadCredentialsException("Invalid email or password");
+            }
 
-        return jwtUtil.generateToken(
-                user.getId(),
-                user.getEmail(),
-                user.getRole().getName().name()
-        );
+            if (user.getStatus() == UserStatus.PENDING_ADMIN_APPROVAL) {
+                throw new IllegalStateException("Your account is pending admin approval");
+            }
+            if (user.getStatus() == UserStatus.PENDING_FACULTY_APPROVAL) {
+                throw new IllegalStateException("Your account is pending faculty approval");
+            }
+            if (user.getStatus() == UserStatus.REJECTED) {
+                throw new IllegalStateException("Your registration was rejected: " + user.getRejectionReason());
+            }
+            if (user.getStatus() != UserStatus.APPROVED) {
+                throw new IllegalStateException("Your account is not approved");
+            }
+
+            return jwtUtil.generateToken(
+                    user.getId(),
+                    user.getEmail(),
+                    user.getRole().getName().name()
+            );
+        } catch (BadCredentialsException e) {
+            throw e;
+        } catch (UsernameNotFoundException e) {
+            throw new BadCredentialsException("Invalid email or password");
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            e.printStackTrace(); // DEBUG
+            throw new RuntimeException("Login failed");
+        }
     }
 
 }
