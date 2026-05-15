@@ -246,8 +246,11 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
 
         CaseStudy caseStudy = caseStudyRepository.findById(submission.getCaseId())
                 .orElse(null);
+        String createdByName = caseStudy != null && caseStudy.getCreatedBy() != null
+                ? caseStudy.getCreatedBy().getFullName()
+                : null;
 
-        return new FacultySubmissionDTO(
+        FacultySubmissionDTO dto = new FacultySubmissionDTO(
                 submission.getId(),
                 submission.getCaseId(),
                 caseStudy != null && caseStudy.getCourse() != null ? caseStudy.getCourse().getId() : null,
@@ -270,6 +273,10 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
                 submission.getSubmittedAt(),
                 submission.getStatus()
         );
+        dto.setCreatedByName(createdByName);
+        dto.setCanEvaluate(true);
+        dto.setReevalReason(submission.getReevalReason());
+        return dto;
     }
 
     @Override
@@ -335,7 +342,7 @@ public class CaseSubmissionServiceImpl implements CaseSubmissionService {
             );
 
             return new SubmissionPayload(
-                    null,
+                    "",
                     null,
                     originalFileName,
                     storedPath

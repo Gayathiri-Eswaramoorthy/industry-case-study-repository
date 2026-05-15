@@ -55,10 +55,31 @@ function approvalRateBadgeClass(rate) {
   return "border-red-200 bg-red-50 text-red-700 dark:border-red-500/40 dark:bg-red-950/30 dark:text-red-300";
 }
 
-function coBarColor(score) {
-  if (score >= 60) return "#10b981";
-  if (score >= 40) return "#f59e0b";
-  return "#ef4444";
+const CO_CHART_PALETTE = [
+  "#2563eb",
+  "#16a34a",
+  "#d97706",
+  "#dc2626",
+  "#7c3aed",
+  "#0f766e",
+  "#ea580c",
+  "#4f46e5",
+];
+
+function hashCode(value) {
+  const text = String(value ?? "");
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash << 5) - hash + text.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function coBarColorByGroup(item) {
+  const groupingKey = item?.courseCode || item?.coCode || "co-default";
+  const index = hashCode(groupingKey) % CO_CHART_PALETTE.length;
+  return CO_CHART_PALETTE[index];
 }
 
 function hasValidFacultyId(value) {
@@ -109,6 +130,9 @@ function DashboardPage() {
     queryKey: ["admin-submission-analytics"],
     queryFn: () => analyticsService.getSubmissionAnalytics(),
     enabled: role === "ADMIN",
+    refetchInterval: 15000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 
   const {
@@ -175,13 +199,22 @@ function DashboardPage() {
     { name: "Admins", value: Number(userAnalytics?.admins ?? 0), fill: USER_COLORS.admins },
   ];
 
+  const submittedCount = Number(submissionAnalytics?.submitted ?? 0);
+  const underReviewCount = Number(submissionAnalytics?.underReview ?? 0);
+  const evaluatedCount = Number(submissionAnalytics?.evaluated ?? 0);
+
   const submissionData = [
-    { name: "Submitted", value: Number(submissionAnalytics?.submitted ?? 0), fill: SUBMISSION_COLORS.submitted },
-    { name: "Under Review", value: Number(submissionAnalytics?.underReview ?? 0), fill: SUBMISSION_COLORS.underReview },
-    { name: "Evaluated", value: Number(submissionAnalytics?.evaluated ?? 0), fill: SUBMISSION_COLORS.evaluated },
+    { name: "Submitted", value: submittedCount, fill: SUBMISSION_COLORS.submitted },
+    {
+      name: "Under Review",
+      value: underReviewCount + submittedCount,
+      fill: SUBMISSION_COLORS.underReview,
+    },
+    { name: "Evaluated", value: evaluatedCount, fill: SUBMISSION_COLORS.evaluated },
   ];
 
   const coChartData = coSummary.map((item) => ({
+    coLabel: item.courseCode ? `${item.courseCode} - ${item.coCode}` : item.coCode,
     coCode: item.coCode,
     averageScore: Number(item.averageScore ?? 0),
     attainedCount: Number(item.attainedCount ?? 0),
@@ -320,6 +353,9 @@ function DashboardPage() {
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <h2 className="mb-4 text-sm font-semibold text-slate-800 dark:text-slate-100">Submission Pipeline</h2>
+          <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+            Under Review includes newly submitted items in queue.
+          </p>
           {isLoadingSubmissions ? (
             <div className="h-[250px] animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
           ) : (
@@ -361,7 +397,7 @@ function DashboardPage() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={coChartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="coCode" tick={{ fill: "#64748b", fontSize: 12 }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="coLabel" tick={{ fill: "#64748b", fontSize: 12 }} axisLine={false} tickLine={false} />
                 <YAxis allowDecimals={false} tick={{ fill: "#64748b", fontSize: 12 }} axisLine={false} tickLine={false} />
                 <Tooltip
                   contentStyle={chartTooltipStyle()}
@@ -369,7 +405,7 @@ function DashboardPage() {
                 />
                 <Bar dataKey="averageScore" radius={[6, 6, 0, 0]}>
                   {coChartData.map((entry) => (
-                    <Cell key={entry.coCode} fill={coBarColor(entry.averageScore)} />
+                    <Cell key={entry.coLabel || entry.coCode} fill={coBarColorByGroup(entry)} />
                   ))}
                 </Bar>
               </BarChart>

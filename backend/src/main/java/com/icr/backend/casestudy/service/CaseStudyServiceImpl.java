@@ -40,6 +40,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import jakarta.persistence.EntityNotFoundException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -635,6 +636,7 @@ public class CaseStudyServiceImpl implements CaseStudyService {
                 .status(caseStudy.getStatus())
                 .courseId(caseStudy.getCourse() != null ? caseStudy.getCourse().getId() : null)
                 .createdBy(caseStudy.getCreatedBy() != null ? caseStudy.getCreatedBy().getId() : null)
+                .createdByName(getCreatedByNameSafely(caseStudy))
                 .dueDate(caseStudy.getDueDate())
                 .maxMarks(caseStudy.getMaxMarks())
                 .category(caseStudy.getCategory())
@@ -676,6 +678,19 @@ public class CaseStudyServiceImpl implements CaseStudyService {
                 .coIds(coIds)
                 .createdAt(caseStudy.getCreatedAt())
                 .build();
+    }
+
+    private String getCreatedByNameSafely(CaseStudy caseStudy) {
+        try {
+            User creator = caseStudy.getCreatedBy();
+            return creator != null ? creator.getFullName() : null;
+        } catch (EntityNotFoundException ex) {
+            log.warn("Case creator entity not found for case id {}", caseStudy.getId());
+            return null;
+        } catch (Exception ex) {
+            log.warn("Case creator unavailable for case id {}", caseStudy.getId(), ex);
+            return null;
+        }
     }
 
     private void saveCaseCoMappings(Long caseId, List<Long> coIds) {

@@ -60,6 +60,9 @@ function CaseDetailsPage() {
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [joinGroupIdInput, setJoinGroupIdInput] = useState("");
+  const [isDocModalOpen, setIsDocModalOpen] = useState(false);
+  const [docPdfUrl, setDocPdfUrl] = useState("");
+  const [isDocLoading, setIsDocLoading] = useState(false);
 
   const {
     data: caseItem,
@@ -307,10 +310,11 @@ function CaseDetailsPage() {
     requestReevalMutation.mutate(trimmedReason);
   };
 
-  const handleDocumentDownload = async () => {
+  const handleDocumentView = async () => {
     if (!caseItem?.id) return;
 
     try {
+      setIsDocLoading(true);
       const token = localStorage.getItem("token");
       if (!token) {
         toast.error("You are not authenticated.");
@@ -322,25 +326,39 @@ function CaseDetailsPage() {
       });
 
       if (response.status === 401 || response.status === 403) {
-        toast.error("You are not authorized to download this document.");
+        toast.error("You are not authorized to view this document.");
         return;
       }
-      if (!response.ok) throw new Error("Download failed");
+      if (!response.ok) throw new Error("View failed");
 
       const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = caseItem.caseDocumentOriginalName || "case-document.pdf";
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      URL.revokeObjectURL(url);
+      const objectUrl = URL.createObjectURL(blob);
+      setDocPdfUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return objectUrl;
+      });
+      setIsDocModalOpen(true);
     } catch (err) {
-      console.error("Failed to download document:", err);
-      toast.error("Failed to download document.");
+      console.error("Failed to view document:", err);
+      toast.error("Failed to view document.");
+    } finally {
+      setIsDocLoading(false);
     }
   };
+
+  const closeDocModal = () => {
+    setIsDocModalOpen(false);
+    setDocPdfUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return "";
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      if (docPdfUrl) URL.revokeObjectURL(docPdfUrl);
+    };
+  }, [docPdfUrl]);
 
   const handleCreateGroup = () => {
     const groupName = newGroupName.trim();
@@ -450,6 +468,12 @@ function CaseDetailsPage() {
                     ))}
                   </div>
                 )}
+                <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  Published by:{" "}
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">
+                    {caseItem.createdByName || "-"}
+                  </span>
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -556,10 +580,11 @@ function CaseDetailsPage() {
           {caseItem.hasDocument && (
             <button
               type="button"
-              onClick={handleDocumentDownload}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
+              onClick={handleDocumentView}
+              disabled={isDocLoading}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
             >
-              Download Case Document (PDF)
+              {isDocLoading ? "Opening..." : "View Case Document (PDF)"}
             </button>
           )}
 
@@ -1103,6 +1128,37 @@ function CaseDetailsPage() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {isDocModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+          <div className="flex h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Case Document</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {caseItem?.caseDocumentOriginalName || "case-document.pdf"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeDocModal}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
+            <div className="h-full w-full bg-slate-100 dark:bg-slate-950">
+              {docPdfUrl ? (
+                <iframe title="Case Document PDF" src={docPdfUrl} className="h-full w-full" />
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+                  Unable to load PDF preview.
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

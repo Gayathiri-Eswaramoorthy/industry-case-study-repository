@@ -41,6 +41,13 @@ function CaseGridView({
                 {item.description}
               </p>
 
+              <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+                Published by:{" "}
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  {item.createdByName || "-"}
+                </span>
+              </p>
+
               <div className="mb-4 flex flex-wrap gap-2">
                 {item.category && (
                   <span

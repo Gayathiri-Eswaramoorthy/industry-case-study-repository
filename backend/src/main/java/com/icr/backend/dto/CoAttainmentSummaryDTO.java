@@ -10,10 +10,10 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CoAttainmentSummaryDTO {
+    private String courseCode;
     private String coCode;
     private String coDescription;
     private double averageScore;
     private long attainedCount;
     private long totalCount;
 }
-

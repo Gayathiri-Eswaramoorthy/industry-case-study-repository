@@ -14,6 +14,7 @@ import com.icr.backend.dto.response.PageResponse;
 import com.icr.backend.entity.User;
 import com.icr.backend.exception.ResourceNotFoundException;
 import com.icr.backend.repository.UserRepository;
+import com.icr.backend.storage.StorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -21,7 +22,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -41,6 +45,7 @@ public class CaseSubmissionController {
     private final CaseSubmissionService caseSubmissionService;
     private final CaseSubmissionRepository caseSubmissionRepository;
     private final UserRepository userRepository;
+    private final StorageService storageService;
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('STUDENT')")
@@ -186,6 +191,53 @@ public class CaseSubmissionController {
                 .submittedAt(submission.getSubmittedAt())
                 .evaluatedAt(submission.getEvaluatedAt())
                 .build();
+    }
+
+    @GetMapping("/{id}/pdf")
+    @PreAuthorize("hasAnyRole('FACULTY','STUDENT','ADMIN')")
+    @Operation(summary = "Download submitted PDF by submission id")
+    public ResponseEntity<Resource> downloadSubmissionPdf(@PathVariable Long id) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new ResourceNotFoundException("Submission not found");
+        }
+
+        User currentUser = userRepository.findByEmail(auth.getName())
+                .orElseThrow(() -> new ResourceNotFoundException("Submission not found"));
+        CaseSubmission submission = caseSubmissionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Submission not found"));
+
+        boolean isAdmin = currentUser.getRole() != null
+                && currentUser.getRole().getName() == com.icr.backend.enums.RoleType.ADMIN;
+        boolean isStudentOwner = currentUser.getRole() != null
+                && currentUser.getRole().getName() == com.icr.backend.enums.RoleType.STUDENT
+                && submission.getStudentId() != null
+                && submission.getStudentId().equals(currentUser.getId());
+        boolean isAssignedFaculty = currentUser.getRole() != null
+                && currentUser.getRole().getName() == com.icr.backend.enums.RoleType.FACULTY
+                && caseSubmissionRepository.findByIdAndStudentFacultyId(id, currentUser.getId()).isPresent();
+
+        if (!isAdmin && !isStudentOwner && !isAssignedFaculty) {
+            throw new ResourceNotFoundException("Submission not found");
+        }
+
+        if (submission.getPdfFilePath() == null || submission.getPdfFilePath().isBlank()) {
+            throw new ResourceNotFoundException("PDF not found for this submission");
+        }
+
+        Resource resource = storageService.load(submission.getPdfFilePath());
+        if (!resource.exists() || !resource.isReadable()) {
+            throw new ResourceNotFoundException("PDF not found for this submission");
+        }
+
+        String downloadName = submission.getPdfFileName() != null && !submission.getPdfFileName().isBlank()
+                ? submission.getPdfFileName()
+                : "submission.pdf";
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + downloadName + "\"")
+                .body(resource);
     }
 
     @PostMapping("/{id}/request-reeval")

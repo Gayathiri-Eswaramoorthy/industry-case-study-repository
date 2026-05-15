@@ -23,6 +23,7 @@ public class CaseStudyResponse {
     private CaseStatus status;
     private Long courseId;
     private Long createdBy;
+    private String createdByName;
     private LocalDateTime dueDate;
     private Integer maxMarks;
     private CaseCategory category;

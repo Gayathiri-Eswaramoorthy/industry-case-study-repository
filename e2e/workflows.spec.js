@@ -11,15 +11,30 @@ const STUDENT_PASSWORD = process.env.STUDENT_PASSWORD || "Student@1234";
 // TESTFIX: Skip CI-hosted E2E runs where full frontend+backend orchestration is not guaranteed.
 test.skip(!!process.env.CI, "E2E requires running frontend and backend servers");
 
+test("public-student-signup-to-pending-flow", async ({ page }) => {
+  const unique = Date.now();
+  const email = `e2e-public-student-${unique}@test.com`;
+
+  await page.goto("/signup/student");
+  await page.locator('input[type="text"]').first().fill(`E2E Public Student ${unique}`);
+  await page.locator('input[type="email"]').first().fill(email);
+  await page.locator('input[type="password"]').first().fill("Student@1234");
+  await expect.poll(async () => page.locator('label:has-text("Select faculty") + select option').count()).toBeGreaterThan(1);
+  await page.locator('label:has-text("Select faculty") + select').selectOption({ index: 1 });
+  await page.click('button:has-text("Create Account")');
+  await page.waitForURL(/registration-pending/);
+  await expect(page.locator("body")).toContainText("Almost There");
+});
+
 test("faculty-full-registration-flow", async ({ page }) => {
   const unique = Date.now();
   const email = `e2e-faculty-${unique}@test.com`;
   const password = "Faculty@1234";
 
-  await page.goto("/register/faculty");
-  await page.fill('input[type="text"]', `E2E Faculty ${unique}`);
-  await page.fill('input[type="email"]', email);
-  await page.fill('input[type="password"]', password);
+  await page.goto("/signup/faculty");
+  await page.locator('input[type="text"]').first().fill(`E2E Faculty ${unique}`);
+  await page.locator('input[type="email"]').first().fill(email);
+  await page.locator('input[type="password"]').first().fill(password);
   // TESTFIX: Use selectOption for department/specialization dropdowns instead of fill().
   await page.locator('label:has-text("Department") + select').selectOption({ index: 1 });
   await page.locator('label:has-text("Specialization") + select').selectOption({ index: 1 });
@@ -43,10 +58,10 @@ test("student-full-registration-flow", async ({ page }) => {
   const email = `e2e-student-${unique}@test.com`;
   const password = "Student@1234";
 
-  await page.goto("/register/student");
-  await page.fill('input[type="text"]', `E2E Student ${unique}`);
-  await page.fill('input[type="email"]', email);
-  await page.fill('input[type="password"]', password);
+  await page.goto("/signup/student");
+  await page.locator('input[type="text"]').first().fill(`E2E Student ${unique}`);
+  await page.locator('input[type="email"]').first().fill(email);
+  await page.locator('input[type="password"]').first().fill(password);
   // TESTFIX: Wait until async faculty options are loaded before selecting.
   // TESTFIX: Wait for non-placeholder faculty options by count instead of visibility checks.
   await expect.poll(async () => page.locator('label:has-text("Select faculty") + select option').count()).toBeGreaterThan(1);
@@ -60,7 +75,7 @@ test("student-full-registration-flow", async ({ page }) => {
   await expect(page.locator("table")).toContainText(email);
   await page.locator("tr", { hasText: email }).locator("button", { hasText: "Approve" }).click();
 
-  await page.goto("/login");
+  await page.goto("/");
   await loginAs(page, email, password, "STUDENT");
   await page.waitForURL(/.*student\/dashboard.*/);
 });
@@ -87,7 +102,12 @@ test("full-case-submission-evaluation-flow", async ({ page }) => {
     headers: { Authorization: `Bearer ${token}` },
   });
   const coursesPayload = await coursesResponse.json();
-  expect(Array.isArray(coursesPayload) ? coursesPayload.length : 0).toBeGreaterThan(0);
+  const courses = Array.isArray(coursesPayload)
+    ? coursesPayload
+    : Array.isArray(coursesPayload?.data)
+      ? coursesPayload.data
+      : [];
+  expect(courses.length).toBeGreaterThan(0);
   await page.goto("/cases/new");
   await page.fill("#title", caseTitle);
   await page.fill("#description", "E2E case description");
@@ -107,7 +127,7 @@ test("full-case-submission-evaluation-flow", async ({ page }) => {
   await expect(createdCaseRow.locator('button:has-text("Publish")')).toBeVisible();
   await createdCaseRow.locator('button:has-text("Publish")').click();
 
-  await page.goto("/login");
+  await page.goto("/");
   await loginAs(page, STUDENT_EMAIL, STUDENT_PASSWORD, "STUDENT");
   await page.waitForURL(/.*student\/dashboard.*/);
   await page.goto("/cases");
@@ -141,10 +161,10 @@ test("rejected-faculty-cannot-login", async ({ page }) => {
   const email = `e2e-reject-faculty-${unique}@test.com`;
   const password = "Faculty@1234";
 
-  await page.goto("/register/faculty");
-  await page.fill('input[type="text"]', `E2E Reject Faculty ${unique}`);
-  await page.fill('input[type="email"]', email);
-  await page.fill('input[type="password"]', password);
+  await page.goto("/signup/faculty");
+  await page.locator('input[type="text"]').first().fill(`E2E Reject Faculty ${unique}`);
+  await page.locator('input[type="email"]').first().fill(email);
+  await page.locator('input[type="password"]').first().fill(password);
   await page.locator('label:has-text("Department") + select').selectOption({ index: 1 });
   await page.locator('label:has-text("Specialization") + select').selectOption({ index: 1 });
   await page.click('button:has-text("Create Account")');
@@ -158,7 +178,7 @@ test("rejected-faculty-cannot-login", async ({ page }) => {
   await page.locator("tr", { hasText: email }).locator("button", { hasText: "Reject" }).click();
   await page.click('button:has-text("Confirm Reject")');
 
-  await page.goto("/login");
+  await page.goto("/");
   await loginAs(page, email, password, "FACULTY");
   // TESTFIX: Rejected faculty login should fail and remain on login with an error state (401 path).
   await expect(page).toHaveURL(/.*login.*/);

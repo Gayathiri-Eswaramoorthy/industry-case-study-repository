@@ -26,7 +26,6 @@ import com.icr.backend.repository.UserRepository;
 import com.icr.backend.service.AnalyticsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -50,7 +49,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     private final CourseOutcomeRepository courseOutcomeRepository;
 
     @Override
-    @Cacheable("dashboardStats")
     public DashboardStatsResponse getDashboardStats() {
         try {
             long totalUsers = userRepository.count();
@@ -75,7 +73,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     }
 
     @Override
-    @Cacheable("userAnalytics")
     public Map<String, Long> getUserAnalytics() {
         return Map.of(
                 "totalUsers", userRepository.count(),
@@ -86,7 +83,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     }
 
     @Override
-    @Cacheable("caseAnalytics")
     public Map<String, Long> getCaseAnalytics() {
         return Map.of(
                 "totalCases", caseStudyRepository.count(),
@@ -97,7 +93,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     }
 
     @Override
-    @Cacheable("submissionAnalytics")
     public Map<String, Long> getSubmissionAnalytics() {
         return Map.of(
                 "totalSubmissions", caseSubmissionRepository.count(),
@@ -158,7 +153,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             return List.of();
         }
 
-        Map<Long, CourseOutcome> outcomesById = courseOutcomeRepository.findAllById(scoresByCoId.keySet())
+        Map<Long, CourseOutcome> outcomesById = courseOutcomeRepository.findAllByIdWithCourse(scoresByCoId.keySet())
                 .stream()
                 .collect(Collectors.toMap(CourseOutcome::getId, outcome -> outcome));
 
@@ -178,6 +173,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                             .orElse(0.0);
 
                     return CoAttainmentSummaryDTO.builder()
+                            .courseCode(outcome.getCourse() != null ? outcome.getCourse().getCourseCode() : null)
                             .coCode(outcome.getCode())
                             .coDescription(outcome.getDescription())
                             .averageScore(Math.round(averageScore * 100.0) / 100.0)

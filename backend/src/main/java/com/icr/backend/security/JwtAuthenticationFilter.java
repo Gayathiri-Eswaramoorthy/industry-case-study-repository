@@ -30,11 +30,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain)
             throws ServletException, IOException {
-        if (isPublicFacultyLookup(request)) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
         String authHeader = request.getHeader("Authorization");
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -74,17 +69,5 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         filterChain.doFilter(request, response);
-    }
-
-    private boolean isPublicFacultyLookup(HttpServletRequest request) {
-        if (!"GET".equalsIgnoreCase(request.getMethod())) {
-            return false;
-        }
-        String uri = request.getRequestURI();
-        if (uri == null || !uri.equals("/api/users")) {
-            return false;
-        }
-        String role = request.getParameter("role");
-        return role != null && "FACULTY".equalsIgnoreCase(role.trim());
     }
 }

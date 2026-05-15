@@ -70,6 +70,13 @@ function CaseListView({ cases, query, normalizeCategory, categoryLabels }) {
                   )}
                 </div>
 
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Published by:{" "}
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">
+                    {item.createdByName || "-"}
+                  </span>
+                </p>
+
                 {previewTags.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5">
                     {previewTags.map((tag) => (

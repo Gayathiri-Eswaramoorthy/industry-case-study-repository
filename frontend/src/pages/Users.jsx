@@ -150,6 +150,8 @@ function Users() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       queryClient.invalidateQueries({ queryKey: ["user-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-user-analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-overall-stats"] });
       toast.success("User deleted successfully");
     },
     onError: () => toast.error("Failed to delete user"),
@@ -160,6 +162,8 @@ function Users() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       queryClient.invalidateQueries({ queryKey: ["user-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-user-analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-overall-stats"] });
       toast.success("User created successfully");
       setIsModalOpen(false);
       setForm(INITIAL_FORM);

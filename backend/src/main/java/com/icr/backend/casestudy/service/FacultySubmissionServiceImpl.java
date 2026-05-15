@@ -1,6 +1,7 @@
 package com.icr.backend.casestudy.service;
 
 import com.icr.backend.casestudy.dto.FacultySubmissionDTO;
+import com.icr.backend.casestudy.entity.CaseStudy;
 import com.icr.backend.casestudy.entity.CaseSubmission;
 import com.icr.backend.casestudy.repository.CaseStudyRepository;
 import com.icr.backend.casestudy.repository.CaseSubmissionRepository;
@@ -44,16 +45,22 @@ public class FacultySubmissionServiceImpl implements FacultySubmissionService {
                 String studentName = userRepository.findById(s.getStudentId())
                         .map(User::getFullName)
                         .orElse("Unknown Student");
-                String caseTitle = caseStudyRepository.findById(s.getCaseId())
-                        .map(c -> c.getTitle())
-                        .orElse("Unknown Case");
-                return new FacultySubmissionDTO(
+                CaseStudy caseStudy = caseStudyRepository.findById(s.getCaseId()).orElse(null);
+                String caseTitle = caseStudy != null ? caseStudy.getTitle() : "Unknown Case";
+                String createdByName = caseStudy != null && caseStudy.getCreatedBy() != null
+                        ? caseStudy.getCreatedBy().getFullName()
+                        : null;
+
+                FacultySubmissionDTO dto = new FacultySubmissionDTO(
                         s.getId(),
                         studentName,
                         caseTitle,
                         s.getSubmittedAt(),
                         s.getStatus()
                 );
+                dto.setCreatedByName(createdByName);
+                dto.setCanEvaluate(true);
+                return dto;
             }).toList();
 
         } catch (Exception e) {

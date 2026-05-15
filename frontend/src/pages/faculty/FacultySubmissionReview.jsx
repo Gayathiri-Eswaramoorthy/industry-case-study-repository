@@ -5,6 +5,7 @@ import axiosInstance from "../../api/axiosInstance";
 import facultySubmissionService from "../../services/facultySubmissionService";
 import caseService from "../../modules/caseStudy/services/caseService";
 import StatusBadge from "../../components/StatusBadge";
+import toast from "react-hot-toast";
 
 function SubmissionSection({ title, value }) {
   if (!value) {
@@ -27,6 +28,9 @@ function FacultySubmissionReview() {
   const [feedback, setFeedback] = useState("");
   const [formError, setFormError] = useState("");
   const [coRows, setCoRows] = useState([]);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState("");
+  const [isPdfLoading, setIsPdfLoading] = useState(false);
 
   const {
     data: submission,
@@ -122,6 +126,56 @@ function FacultySubmissionReview() {
     );
   };
 
+  const handleDownloadPdf = async () => {
+    try {
+      await facultySubmissionService.downloadSubmissionPdf(
+        submission.submissionId,
+        submission.pdfFileName
+      );
+    } catch (error) {
+      const message = error?.message || "Unable to download submitted PDF.";
+      toast.error(message);
+    }
+  };
+
+  const handleViewPdf = async () => {
+    try {
+      setIsPdfLoading(true);
+      const blob = await facultySubmissionService.viewSubmissionPdf(submission.submissionId);
+      const objectUrl = window.URL.createObjectURL(blob);
+      setPdfUrl((prev) => {
+        if (prev) {
+          window.URL.revokeObjectURL(prev);
+        }
+        return objectUrl;
+      });
+      setIsPdfModalOpen(true);
+    } catch (error) {
+      const message = error?.message || "Unable to open submitted PDF.";
+      toast.error(message);
+    } finally {
+      setIsPdfLoading(false);
+    }
+  };
+
+  const closePdfModal = () => {
+    setIsPdfModalOpen(false);
+    setPdfUrl((prev) => {
+      if (prev) {
+        window.URL.revokeObjectURL(prev);
+      }
+      return "";
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pdfUrl) {
+        window.URL.revokeObjectURL(pdfUrl);
+      }
+    };
+  }, [pdfUrl]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     setFormError("");
@@ -212,9 +266,9 @@ function FacultySubmissionReview() {
         <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-500/30 dark:bg-blue-950/30 dark:text-blue-300">
           <p className="font-semibold">View only</p>
           <p className="mt-0.5 text-xs">
-            Only the faculty who created this case can evaluate submissions.
+            Only the assigned faculty for this student can evaluate submissions.
             {submission.createdByName && (
-              <span> Created by <strong>{submission.createdByName}</strong>.</span>
+              <span> This case was created/published by <strong>{submission.createdByName}</strong>.</span>
             )}
           </p>
         </div>
@@ -238,6 +292,18 @@ function FacultySubmissionReview() {
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950">
               <p className="text-xs text-slate-500 dark:text-slate-400">Case</p>
               <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">{submission.caseTitle}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Case Created / Published By</p>
+              <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                {submission.createdByName || "-"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Evaluation Access</p>
+              <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                {canEvaluate ? "Assigned Faculty" : "View Only"}
+              </p>
             </div>
           </div>
 
@@ -278,8 +344,33 @@ function FacultySubmissionReview() {
               </div>
             )}
 
+            {submission.pdfFileName && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950">
+                <h3 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">Submitted PDF</h3>
+                <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">{submission.pdfFileName}</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleViewPdf}
+                    disabled={isPdfLoading}
+                    className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    {isPdfLoading ? "Opening..." : "View PDF"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadPdf}
+                    className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    Download PDF
+                  </button>
+                </div>
+              </div>
+            )}
+
             {!submission.executiveSummary &&
               !submission.githubLink &&
+              !submission.pdfFileName &&
               submission.solutionText && (
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950">
                 <h3 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
@@ -302,7 +393,8 @@ function FacultySubmissionReview() {
 
             {!submission.solutionText &&
               !submission.executiveSummary &&
-              !submission.githubLink && (
+              !submission.githubLink &&
+              !submission.pdfFileName && (
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950">
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                   No submission content available.
@@ -507,6 +599,39 @@ function FacultySubmissionReview() {
           </div>
         </div>
       </div>
+
+      {isPdfModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+          <div className="flex h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Submitted PDF Preview</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{submission?.pdfFileName || "submission.pdf"}</p>
+              </div>
+              <button
+                type="button"
+                onClick={closePdfModal}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
+            <div className="h-full w-full bg-slate-100 dark:bg-slate-950">
+              {pdfUrl ? (
+                <iframe
+                  title="Submitted PDF"
+                  src={pdfUrl}
+                  className="h-full w-full"
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+                  Unable to load PDF preview.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

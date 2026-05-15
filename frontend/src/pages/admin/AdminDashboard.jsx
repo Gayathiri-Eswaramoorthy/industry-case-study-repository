@@ -338,15 +338,15 @@ function AdminDashboard() {
       <section className="grid gap-4 md:grid-cols-3">
         <div className="rounded-xl bg-slate-900 p-4 text-white shadow-sm dark:bg-slate-800">
           <p className="text-2xl font-bold">{metrics.totalCases}</p>
-          <p className="mt-1 text-xs uppercase tracking-wide text-slate-300">Case Studies</p>
+          <p className="mt-1 text-sm text-slate-300">Total Cases</p>
         </div>
         <div className="rounded-xl bg-slate-900 p-4 text-white shadow-sm dark:bg-slate-800">
           <p className="text-2xl font-bold">{metrics.totalSubmissions}</p>
-          <p className="mt-1 text-xs uppercase tracking-wide text-slate-300">Submissions</p>
+          <p className="mt-1 text-sm text-slate-300">Total Submissions</p>
         </div>
         <div className="rounded-xl bg-slate-900 p-4 text-white shadow-sm dark:bg-slate-800">
           <p className="text-2xl font-bold">{metrics.totalUsers}</p>
-          <p className="mt-1 text-xs uppercase tracking-wide text-slate-300">Registered Users</p>
+          <p className="mt-1 text-sm text-slate-300">Total Users</p>
         </div>
       </section>
     </div>
